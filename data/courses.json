@@ -1,0 +1,44 @@
+{
+  "courses": [
+    {
+      "code": "BM",
+      "name": "Business Management",
+      "units": ["BM001", "BM002"]
+    },
+    {
+      "code": "BA",
+      "name": "Business Analytics",
+      "units": ["BA001", "BA002"]
+    }
+  ],
+  "units": [
+    {
+      "code": "BM001",
+      "name": "Employability and Careers",
+      "courseCode": "BM",
+      "description": "Imajine University's Bachelor of Business gives you the skills and experience needed to succeed in the business world. You will solve practical business challenges, explore innovative and emerging business trends, and prepare for the nuances of international business relationships. There are opportunities to secure a sought-after work placement with our industry partners, and to gain a global perspective of business on an international study tour.",
+      "currentWeek": 3
+    },
+    {
+      "code": "BM002",
+      "name": "Principles of Marketing",
+      "courseCode": "BM",
+      "description": "You will adopt the entrepreneurial tools required to get your own business up and running, and get the skills to work in a variety of roles, from sustainability and events management to digital communication and organisational psychology. This unit focuses on understanding consumer behavior and developing effective marketing strategies.",
+      "currentWeek": 3
+    },
+    {
+      "code": "BA001",
+      "name": "Academic Integrity and Respect",
+      "courseCode": "BA",
+      "description": "Launch a career in the booming world of business insights with Imajine University's Bachelor of Business Analytics. With hands-on experience in real-world projects, you will become a confident business analytics translator capable of unlocking innovative solutions for businesses using data insights.",
+      "currentWeek": 3
+    },
+    {
+      "code": "BA002",
+      "name": "Tools and Techniques for Business Analytics",
+      "courseCode": "BA",
+      "description": "Work on real-world projects, practise with the analysis tools used by professionals and get industry experience translating insights into impact. This unit provides hands-on training with industry-standard analytics software and methodologies.",
+      "currentWeek": 3
+    }
+  ]
+}

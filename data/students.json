@@ -1,0 +1,76 @@
+[
+  {
+    "id": "s001",
+    "firstName": "Tom",
+    "lastName": "Holland",
+    "email": "TomHolland@imajine.ac.id",
+    "password": "student123",
+    "courseCode": "BM",
+    "year": 1
+  },
+  {
+    "id": "s002",
+    "firstName": "Florence",
+    "lastName": "Pugh",
+    "email": "FlorencePugh@imajine.ac.id",
+    "password": "student123",
+    "courseCode": "BA",
+    "year": 1
+  },
+  {
+    "id": "s003",
+    "firstName": "Zendaya",
+    "lastName": "",
+    "courseCode": "BM",
+    "year": 1
+  },
+  {
+    "id": "s004",
+    "firstName": "Timothée",
+    "lastName": "Chalamet",
+    "courseCode": "BA",
+    "year": 1
+  },
+  {
+    "id": "s005",
+    "firstName": "Anya",
+    "lastName": "Taylor-Joy",
+    "courseCode": "BM",
+    "year": 1
+  },
+  {
+    "id": "s006",
+    "firstName": "Emma",
+    "lastName": "Stone",
+    "courseCode": "BA",
+    "year": 1
+  },
+  {
+    "id": "s007",
+    "firstName": "Jacob",
+    "lastName": "Elordi",
+    "courseCode": "BM",
+    "year": 1
+  },
+  {
+    "id": "s008",
+    "firstName": "Sydney",
+    "lastName": "Sweeney",
+    "courseCode": "BA",
+    "year": 1
+  },
+  {
+    "id": "s009",
+    "firstName": "Noah",
+    "lastName": "Centineo",
+    "courseCode": "BM",
+    "year": 1
+  },
+  {
+    "id": "s010",
+    "firstName": "Lana",
+    "lastName": "Condor",
+    "courseCode": "BA",
+    "year": 1
+  }
+]

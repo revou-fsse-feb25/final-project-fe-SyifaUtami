@@ -1,0 +1,40 @@
+{
+  "faculty": [
+    {
+      "id": "f001",
+      "firstName": "Lady",
+      "lastName": "Gaga",
+      "title": "Coordinator",
+      "email": "coordinator@imajine.ac.id",
+      "password": "coordinator123",
+      "accessLevel": "full",
+      "courseManaged": ["BM", "BA"]
+    }
+  ],
+  "teachers": [
+    {
+      "id": "t001",
+      "firstName": "Damiano",
+      "lastName": "David",
+      "unitsTeached": ["BM001"]
+    },
+    {
+      "id": "t002",
+      "firstName": "Victoria",
+      "lastName": "De Angelis",
+      "unitsTeached": ["BM002"]
+    },
+    {
+      "id": "t003",
+      "firstName": "Thomas",
+      "lastName": "Raggi",
+      "unitsTeached": ["BA001"]
+    },
+    {
+      "id": "t004",
+      "firstName": "Ethan",
+      "lastName": "Torchio",
+      "unitsTeached": ["BA002"]
+    }
+  ]
+}
