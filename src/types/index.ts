@@ -31,3 +31,34 @@ export interface Course {
   name: string;
   units: string[];
 }
+
+export interface StudentSubmission {
+  submissionId?: string;
+  studentId: string;
+  assignmentId: string;
+  status: 'open' | 'closed'; 
+  submissionStatus: 'empty' | 'draft' | 'submitted';
+  submissionName?: string | null;
+  submittedAt?: string | null;
+  grade?: number | null;
+  comment?: string | null;
+  gradedBy?: string | null;
+}
+
+interface Teacher {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string; // Now required since all teachers have emails
+  unitsTeached: string[];
+}
+
+interface Faculty {
+  id: string;
+  firstName: string;
+  lastName: string;
+  title: string;
+  email: string;
+  accessLevel: string;
+  courseManaged: string[];
+}

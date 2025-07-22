@@ -121,7 +121,7 @@ const StudentProfile: FC = () => {
           
           <div className="space-y-4">
             {units.map((unit) => (
-              <div>
+              <div key={unit.code}>
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg" style={{ color: 'var(--text-black)' }}>
                     {unit.name} ({unit.code})

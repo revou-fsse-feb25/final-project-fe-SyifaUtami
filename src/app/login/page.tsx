@@ -7,7 +7,6 @@ import { useAuth } from '../context/authContext';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [userType] = useState<'student' | 'faculty'>('student'); 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -90,7 +89,7 @@ export default function LoginPage() {
         if (data.userType === 'coordinator') {
           router.push('/coordinator/dashboard');
         } else {
-          router.push('/students/dashboard');
+          router.push('/students/courses');
         }
       } else {
         setError('Invalid email or password');

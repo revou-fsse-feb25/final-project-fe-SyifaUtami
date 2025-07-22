@@ -11,7 +11,6 @@ import {
   faGraduationCap, 
   faBookOpen, 
   faClipboardList, 
-  faHistory,
   faChartLine,
   faUsers,
   faChalkboardTeacher,
@@ -251,7 +250,7 @@ export default function Navigation() {
           {user && (
             <button
               onClick={toggleMenu}
-              className="mr-4 p-2 text-white hover:bg-white hover:bg-opacity-20 rounded transition-colors"
+              className="mr-4 p-2 text-white hover:bg-white hover:text-black hover:bg-opacity-20 rounded transition-colors"
             >
               <FontAwesomeIcon icon={faBars} className="text-lg" />
             </button>

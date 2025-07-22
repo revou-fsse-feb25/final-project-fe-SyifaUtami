@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBookOpen } from '@fortawesome/free-solid-svg-icons';
 import { useStudentProgress } from '../context/useStudentProgress';
+import { calculateProgress } from './studentProgress';
 import { Unit, StudentProgress } from '../../types';
-import StudentProgressComponent from './studentProgress';
 
 interface StudentUnitCardProps {
   unit: Unit;
@@ -18,6 +18,16 @@ const StudentUnitCard: FC<StudentUnitCardProps> = ({
 }) => {
   // Use the hook to get progress data
   const { studentProgress, assignments } = useStudentProgress(unit.code);
+
+  // Calculate progress percentage using the existing function
+  const getProgressPercentage = () => {
+    if (!studentProgress || !assignments) return 0;
+    
+    const progress = calculateProgress(studentProgress, assignments);
+    return progress.percentage;
+  };
+
+  const progressPercentage = getProgressPercentage();
 
   return (
     <Link href={`/students/units/${unit.code}`}>
@@ -43,13 +53,23 @@ const StudentUnitCard: FC<StudentUnitCardProps> = ({
           
           {/* Progress Section */}
           <div className="text-center">
-            <p className="text-sm font-medium text-gray-700 mb-1">Your Progress</p>
-            <div className="text-xl font-bold" style={{ color: 'var(--primary-red)' }}>
-              <StudentProgressComponent 
-                progressData={studentProgress} 
-                assignments={assignments} 
+            <p className="text-sm font-medium text-gray-700 mb-2">Your Progress</p>
+            
+            {/* Progress Bar */}
+            <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
+              <div 
+                className="h-2 rounded-full transition-all duration-300"
+                style={{ 
+                  width: `${progressPercentage}%`,
+                  backgroundColor: '#1C2938'
+                }}
               />
             </div>
+            
+            {/* Small Percentage Text */}
+            <p className="text-xs text-gray-600">
+              {progressPercentage}%
+            </p>
           </div>
         </div>
       </div>
