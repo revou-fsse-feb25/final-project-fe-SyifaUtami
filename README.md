@@ -102,3 +102,6 @@ Students:
 - upcoming assignments
 2. Unit details 
 - 
+
+
+.login directs to dashboard, should be on course

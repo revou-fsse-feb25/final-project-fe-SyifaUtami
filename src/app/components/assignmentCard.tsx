@@ -1,11 +1,12 @@
 'use client';
 import { Assignment, StudentSubmission } from '../../types';
+import { useRouter } from 'next/navigation';
 
 interface AssignmentCardProps {
   assignment: Assignment;
   submission?: StudentSubmission;
   onClick?: () => void;
-  showUnit?: boolean; // For showing unit code when displaying across multiple units
+  showUnit?: boolean;
 }
 
 export default function AssignmentCard({ 
@@ -14,16 +15,26 @@ export default function AssignmentCard({
   onClick,
   showUnit = false 
 }: AssignmentCardProps) {
+  const router = useRouter();
   const isOpen = assignment.status === 'open';
-  const isOverdue = new Date(assignment.deadline) < new Date() && isOpen;
   
-  // Debug logging
-  console.log('AssignmentCard Debug:', {
-    assignmentId: assignment.id,
-    assignmentName: assignment.name,
-    submissionData: submission,
-    submissionStatus: submission?.submissionStatus
-  });
+  const handleCardClick = () => {
+    if (onClick) {
+      onClick();
+      return;
+    }
+
+    // Handle navigation based on assignment status
+    if (isOpen) {
+      router.push(`/student/assignments/${assignment.id}`);
+    } else {
+      if (submission?.submissionId) {
+        router.push(`/student/assignments/${submission.submissionId}`);
+      } else {
+        router.push(`/student/assignments/${assignment.id}`);
+      }
+    }
+  };
   
   const getStatusBadge = () => {
     if (isOpen) {
@@ -33,12 +44,39 @@ export default function AssignmentCard({
     }
   };
 
+  const getSubmissionStatusDisplay = () => {
+    if (!submission) {
+      return isOpen ? 'Not started' : 'No submission';
+    }
+    
+    switch (submission.submissionStatus) {
+      case 'empty':
+        return 'Not started';
+      case 'draft':
+        return 'Draft saved';
+      case 'submitted':
+        return 'Submitted';
+      case 'unsubmitted':
+        return 'Not submitted';
+      default:
+        return 'Unknown status';
+    }
+  };
+
   return (
     <div 
-      className={`flex justify-between items-center p-5 bg-white rounded border-2 hover:shadow-md transition-all ${
-        onClick ? 'cursor-pointer hover:border-blue-300' : ''
-      }`}
-      onClick={onClick}
+      className="flex justify-between items-center p-5 bg-white rounded border-2 hover:shadow-md transition-all cursor-pointer hover:bg-gray-100"
+      style={{
+        borderColor: 'transparent',
+        '--hover-border-color': '#CD3F3E'
+      } as React.CSSProperties & { '--hover-border-color': string }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = '#CD3F3E';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = 'transparent';
+      }}
+      onClick={handleCardClick}
     >
       <div className="flex-1">
         <h4 className="text-lg font-medium text-gray-900 mb-2">
@@ -53,10 +91,15 @@ export default function AssignmentCard({
               Unit: {assignment.unitCode}
             </p>
           )}
+          
+          {/* Submission Status */}
+          <p className="text-sm text-gray-600">
+            Status: {getSubmissionStatusDisplay()}
+          </p>
         </div>
       </div>
       
-      <div className="ml-4">
+      <div className="ml-4 flex flex-col items-end gap-2">
         {getStatusBadge()}
       </div>
     </div>

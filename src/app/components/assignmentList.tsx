@@ -40,7 +40,6 @@ export default function AssignmentList({
               key={item.assignment.id}
               assignment={item.assignment}
               submission={item.submission}
-              onClick={onAssignmentClick ? () => onAssignmentClick(item) : undefined}
               showUnit={showUnit}
             />
           ))}

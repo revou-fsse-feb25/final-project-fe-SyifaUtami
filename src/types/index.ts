@@ -37,7 +37,7 @@ export interface StudentSubmission {
   studentId: string;
   assignmentId: string;
   status: 'open' | 'closed'; 
-  submissionStatus: 'empty' | 'draft' | 'submitted';
+  submissionStatus: 'empty' | 'draft' | 'submitted' | 'unsubmitted';
   submissionName?: string | null;
   submittedAt?: string | null;
   grade?: number | null;
@@ -49,7 +49,7 @@ interface Teacher {
   id: string;
   firstName: string;
   lastName: string;
-  email: string; // Now required since all teachers have emails
+  email: string; 
   unitsTeached: string[];
 }
 

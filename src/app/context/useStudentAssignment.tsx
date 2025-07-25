@@ -4,11 +4,11 @@ import { useAuth } from './authContext';
 import { Assignment } from '../../types';
 
 interface StudentSubmission {
-  submissionId?: string;
+  submissionId: string;
   studentId: string;
   assignmentId: string;
-  status: 'open' | 'closed'; // assignment status when this submission was made
-  submissionStatus: 'empty' | 'draft' | 'submitted';
+  status: 'open' | 'closed';
+  submissionStatus: 'empty' | 'draft' | 'submitted' | 'unsubmitted';
   submissionName?: string | null;
   submittedAt?: string | null;
   grade?: number | null;
@@ -43,50 +43,41 @@ export const useStudentAssignments = (): UseStudentAssignmentsReturn => {
       return;
     }
 
-    console.log('Current user ID:', user.id); // DEBUG: Check user ID
+    // Use student ID from auth context, fallback to test ID if needed
+    const studentId = user.id || 's001';
 
     try {
       setIsLoading(true);
       setError(null);
 
-      // Fetch open assignments
-      const openResponse = await fetch(
-        `/api/assignments?status=open&studentId=${user.id}&includeSubmissions=true`
-      );
-      
-      // Fetch closed assignments
-      const closedResponse = await fetch(
-        `/api/assignments?status=closed&studentId=${user.id}&includeSubmissions=true`
-      );
+      // Fetch open and closed assignments
+      const openUrl = `/api/assignments?status=open&studentId=${studentId}&includeSubmissions=true`;
+      const closedUrl = `/api/assignments?status=closed&studentId=${studentId}&includeSubmissions=true`;
+
+      const [openResponse, closedResponse] = await Promise.all([
+        fetch(openUrl),
+        fetch(closedUrl)
+      ]);
 
       if (!openResponse.ok || !closedResponse.ok) {
         throw new Error('Failed to fetch assignments');
       }
 
-      const openData = await openResponse.json();
-      const closedData = await closedResponse.json();
-
-      // Debug the raw API responses
-      console.log('Raw Open Data:', openData);
-      console.log('Raw Closed Data:', closedData);
-      console.log('Open assignments array:', openData.assignments);
-      console.log('Open submissions array:', openData.submissions);
-      console.log('Closed assignments array:', closedData.assignments);  
-      console.log('Closed submissions array:', closedData.submissions);
+      const [openData, closedData] = await Promise.all([
+        openResponse.json(),
+        closedResponse.json()
+      ]);
 
       // Combine assignments with their submissions
       const combineAssignmentsWithSubmissions = (data: any): AssignmentWithSubmission[] => {
-        console.log('Combining data:', data);
-        console.log('Assignments:', data.assignments);
-        console.log('Submissions:', data.submissions);
+        if (!data.assignments) {
+          return [];
+        }
         
         return data.assignments.map((assignment: Assignment) => {
           const submission = data.submissions?.find(
             (sub: StudentSubmission) => sub.assignmentId === assignment.id
           );
-          
-          console.log(`Assignment ${assignment.id}:`, assignment);
-          console.log(`Found submission for ${assignment.id}:`, submission);
           
           return {
             assignment,
@@ -99,7 +90,6 @@ export const useStudentAssignments = (): UseStudentAssignmentsReturn => {
       setClosedAssignments(combineAssignmentsWithSubmissions(closedData));
 
     } catch (err) {
-      console.error('Error fetching assignments:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch assignments');
     } finally {
       setIsLoading(false);

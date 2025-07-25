@@ -12,6 +12,7 @@
     "gradedBy": "t001"
   },
   {
+    "submissionId": "SUB_s001_BM0012_1",
     "studentId": "s001",
     "assignmentId": "BM0012",
     "status": "open",
@@ -35,6 +36,7 @@
     "gradedBy": "t002"
   },
   {
+    "submissionId": "SUB_s001_BM0022_1",
     "studentId": "s001",
     "assignmentId": "BM0022",
     "status": "open",
@@ -58,6 +60,7 @@
     "gradedBy": "t003"
   },
   {
+    "submissionId": "SUB_s002_BA0012_1",
     "studentId": "s002",
     "assignmentId": "BA0012",
     "status": "open",
@@ -81,6 +84,7 @@
     "gradedBy": "t004"
   },
   {
+    "submissionId": "SUB_s002_BA0022_1",
     "studentId": "s002",
     "assignmentId": "BA0022",
     "status": "open",
@@ -104,6 +108,7 @@
     "gradedBy": "t001"
   },
   {
+    "submissionId": "SUB_s003_BM0012_1",
     "studentId": "s003",
     "assignmentId": "BM0012",
     "status": "open",
@@ -127,6 +132,7 @@
     "gradedBy": "t002"
   },
   {
+    "submissionId": "SUB_s003_BM0022_1",
     "studentId": "s003",
     "assignmentId": "BM0022",
     "status": "open",
@@ -150,6 +156,7 @@
     "gradedBy": "t003"
   },
   {
+    "submissionId": "SUB_s004_BA0012_1",
     "studentId": "s004",
     "assignmentId": "BA0012",
     "status": "open",
@@ -173,6 +180,7 @@
     "gradedBy": "t004"
   },
   {
+    "submissionId": "SUB_s004_BA0022_1",
     "studentId": "s004",
     "assignmentId": "BA0022",
     "status": "open",
@@ -196,6 +204,7 @@
     "gradedBy": "t001"
   },
   {
+    "submissionId": "SUB_s005_BM0012_1",
     "studentId": "s005",
     "assignmentId": "BM0012",
     "status": "open",
@@ -219,6 +228,7 @@
     "gradedBy": "t002"
   },
   {
+    "submissionId": "SUB_s005_BM0022_1",
     "studentId": "s005",
     "assignmentId": "BM0022",
     "status": "open",
@@ -242,6 +252,7 @@
     "gradedBy": "t003"
   },
   {
+    "submissionId": "SUB_s006_BA0012_1",
     "studentId": "s006",
     "assignmentId": "BA0012",
     "status": "open",
@@ -265,6 +276,7 @@
     "gradedBy": "t004"
   },
   {
+    "submissionId": "SUB_s006_BA0022_1",
     "studentId": "s006",
     "assignmentId": "BA0022",
     "status": "open",
@@ -288,6 +300,7 @@
     "gradedBy": "t001"
   },
   {
+    "submissionId": "SUB_s007_BM0012_1",
     "studentId": "s007",
     "assignmentId": "BM0012",
     "status": "open",
@@ -311,6 +324,7 @@
     "gradedBy": "t002"
   },
   {
+    "submissionId": "SUB_s007_BM0022_1",
     "studentId": "s007",
     "assignmentId": "BM0022",
     "status": "open",
@@ -334,6 +348,7 @@
     "gradedBy": "t003"
   },
   {
+    "submissionId": "SUB_s008_BA0012_1",
     "studentId": "s008",
     "assignmentId": "BA0012",
     "status": "open",
@@ -357,6 +372,7 @@
     "gradedBy": "t004"
   },
   {
+    "submissionId": "SUB_s008_BA0022_1",
     "studentId": "s008",
     "assignmentId": "BA0022",
     "status": "open",
@@ -380,6 +396,7 @@
     "gradedBy": "t001"
   },
   {
+    "submissionId": "SUB_s009_BM0012_1",
     "studentId": "s009",
     "assignmentId": "BM0012",
     "status": "open",
@@ -403,6 +420,7 @@
     "gradedBy": "t002"
   },
   {
+    "submissionId": "SUB_s009_BM0022_1",
     "studentId": "s009",
     "assignmentId": "BM0022",
     "status": "open",
@@ -426,6 +444,7 @@
     "gradedBy": "t003"
   },
   {
+    "submissionId": "SUB_s010_BA0012_1",
     "studentId": "s010",
     "assignmentId": "BA0012",
     "status": "open",
@@ -449,6 +468,7 @@
     "gradedBy": "t004"
   },
   {
+    "submissionId": "SUB_s010_BA0022_1",
     "studentId": "s010",
     "assignmentId": "BA0022",
     "status": "open",

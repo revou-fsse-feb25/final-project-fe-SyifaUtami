@@ -1,10 +1,10 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '../../context/authContext';
+import { useStudentAssignments } from '../../context/useStudentAssignment';
 import { Assignment, StudentSubmission } from '../../../types';
 import SearchBar from '../../components/searchBar';
 import AssignmentList from '../../components/assignmentList';
-
 
 interface AssignmentWithSubmission {
   assignment: Assignment;
@@ -19,70 +19,31 @@ interface FilterOption {
 
 export default function StudentAssignmentsPage() {
   const { user } = useAuth();
-  const [allAssignments, setAllAssignments] = useState<AssignmentWithSubmission[]>([]);
+  const { 
+    openAssignments, 
+    closedAssignments, 
+    isLoading, 
+    error, 
+    refetch
+  } = useStudentAssignments();
+
+  // Combine open and closed assignments
+  const allAssignments = useMemo(() => {
+    return [...openAssignments, ...closedAssignments];
+  }, [openAssignments, closedAssignments]);
+
   const [filteredAssignments, setFilteredAssignments] = useState<AssignmentWithSubmission[]>([]);
-  const [studentUnits, setStudentUnits] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // Fetch all student's assignments
-  useEffect(() => {
-    const fetchStudentAssignments = async () => {
-      if (!user) return;
+  // Update filtered assignments when allAssignments changes
+  useMemo(() => {
+    setFilteredAssignments(allAssignments);
+  }, [allAssignments]);
 
-      try {
-        setIsLoading(true);
-        
-        // First, get student's enrolled units from their course
-        const academicResponse = await fetch('/api/academic-data');
-        if (!academicResponse.ok) throw new Error('Failed to fetch academic data');
-        
-        const academicData = await academicResponse.json();
-        
-        // Find student's course and get their units
-        const studentCourse = academicData.courses.find((course: any) => 
-          course.code === user.courseCode
-        );
-        
-        if (!studentCourse) {
-          throw new Error('Student course not found');
-        }
-        
-        const studentUnits = studentCourse.units; // Array of unit codes
-        setStudentUnits(studentUnits);
-        
-        // Then fetch assignments for those units only
-        const unitCodesParam = studentUnits.join(',');
-        const response = await fetch(
-          `/api/assignments?unitCode=${unitCodesParam}&studentId=${user.id}&includeSubmissions=true`
-        );
-        
-        if (!response.ok) throw new Error('Failed to fetch assignments');
-        
-        const data = await response.json();
-        
-        // Combine assignments with their submissions
-        const combined: AssignmentWithSubmission[] = data.assignments.map((assignment: Assignment) => {
-          const submission = data.submissions?.find(
-            (sub: StudentSubmission) => sub.assignmentId === assignment.id
-          );
-          
-          return { assignment, submission };
-        });
-
-        setAllAssignments(combined);
-        setFilteredAssignments(combined);
-
-      } catch (err) {
-        console.error('Error fetching assignments:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch assignments');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchStudentAssignments();
-  }, [user]);
+  // Get unique unit codes for filter options
+  const studentUnits = useMemo(() => {
+    const units = Array.from(new Set(allAssignments.map(item => item.assignment.unitCode)));
+    return units.sort();
+  }, [allAssignments]);
 
   // Create filter options
   const filterOptions: FilterOption[] = useMemo(() => [
@@ -90,6 +51,24 @@ export default function StudentAssignmentsPage() {
       key: 'unitCode',
       label: 'Unit',
       options: studentUnits.map(unit => ({ value: unit, label: unit }))
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      options: [
+        { value: 'open', label: 'Open' },
+        { value: 'closed', label: 'Closed' }
+      ]
+    },
+    {
+      key: 'submissionStatus',
+      label: 'Submission Status',
+      options: [
+        { value: 'submitted', label: 'Submitted' },
+        { value: 'draft', label: 'Draft' },
+        { value: 'empty', label: 'Not Started' },
+        { value: 'unsubmitted', label: 'Not Submitted' }
+      ]
     }
   ], [studentUnits]);
 
@@ -111,10 +90,22 @@ export default function StudentAssignmentsPage() {
       filtered = filtered.filter(item => item.assignment.unitCode === filters.unitCode);
     }
 
+    // Apply status filter
+    if (filters.status) {
+      filtered = filtered.filter(item => item.assignment.status === filters.status);
+    }
+
+    // Apply submission status filter
+    if (filters.submissionStatus) {
+      filtered = filtered.filter(item => 
+        item.submission?.submissionStatus === filters.submissionStatus
+      );
+    }
+
     setFilteredAssignments(filtered);
   };
 
-  // Split and sort assignments
+  // Split and sort assignments from filtered results
   const upcomingAssignments = useMemo(() => {
     return filteredAssignments
       .filter(item => item.assignment.status === 'open')
@@ -126,17 +117,6 @@ export default function StudentAssignmentsPage() {
       .filter(item => item.assignment.status === 'closed')
       .sort((a, b) => new Date(b.assignment.deadline).getTime() - new Date(a.assignment.deadline).getTime());
   }, [filteredAssignments]);
-
-  // Handle assignment click
-  const handleAssignmentClick = (item: AssignmentWithSubmission) => {
-    if (item.assignment.status === 'closed' && item.submission) {
-      // Navigate to submission view for closed assignments
-      window.location.href = `/assignments/${item.assignment.id}/submission`;
-    } else if (item.assignment.status === 'open') {
-      // Navigate to assignment page for open assignments
-      window.location.href = `/assignments/${item.assignment.id}`;
-    }
-  };
 
   if (isLoading) {
     return (
@@ -152,6 +132,12 @@ export default function StudentAssignmentsPage() {
         <div className="text-center">
           <h1 className="text-2xl font-semibold mb-4 text-red-600">Error</h1>
           <p className="text-lg text-gray-600">{error}</p>
+          <button 
+            onClick={refetch}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -183,7 +169,6 @@ export default function StudentAssignmentsPage() {
           title="Upcoming Assignments"
           assignments={upcomingAssignments}
           emptyMessage="No upcoming assignments found."
-          onAssignmentClick={handleAssignmentClick}
           showUnit={true}
         />
 
@@ -192,7 +177,6 @@ export default function StudentAssignmentsPage() {
           title="Past Assignments"
           assignments={pastAssignments}
           emptyMessage="No past assignments found."
-          onAssignmentClick={handleAssignmentClick}
           showUnit={true}
         />
       </div>
