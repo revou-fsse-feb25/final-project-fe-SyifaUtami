@@ -45,7 +45,7 @@ export interface StudentSubmission {
   gradedBy?: string | null;
 }
 
-interface Teacher {
+export interface Teacher {
   id: string;
   firstName: string;
   lastName: string;
@@ -53,7 +53,7 @@ interface Teacher {
   unitsTeached: string[];
 }
 
-interface Faculty {
+export interface Faculty {
   id: string;
   firstName: string;
   lastName: string;

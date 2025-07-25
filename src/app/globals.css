@@ -59,12 +59,21 @@ body {
 }
 
 .lms-table {
-  background-color: var(--card-background);
+  background-color: white;
   border-radius: 0.5rem;
   border: 1px solid var(--border-color);
   overflow: hidden;
 }
 
+.lms-table-header {
+  background-color: var(--border-color) !important;
+  color: white !important;
+}
+
+.lms-table-header th {
+  background-color: var(--border-color) !important;
+  color: white !important;
+}
 .lms-input {
   background-color: white;
   border: 1px solid #d1d5db;

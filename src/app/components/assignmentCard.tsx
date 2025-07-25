@@ -26,12 +26,12 @@ export default function AssignmentCard({
 
     // Handle navigation based on assignment status
     if (isOpen) {
-      router.push(`/student/assignments/${assignment.id}`);
+      router.push(`/students/assignments/${assignment.id}`);
     } else {
       if (submission?.submissionId) {
-        router.push(`/student/assignments/${submission.submissionId}`);
+        router.push(`/students/assignments/${submission.submissionId}`);
       } else {
-        router.push(`/student/assignments/${assignment.id}`);
+        router.push(`/students/assignments/${assignment.id}`);
       }
     }
   };
