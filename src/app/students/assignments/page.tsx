@@ -1,7 +1,7 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { useAuth } from '../../context/authContext';
-import { useStudentAssignments } from '../../context/useStudentAssignment';
+import { useStudentAssignment } from '../../context/useStudentAssignment';
 import { Assignment, StudentSubmission } from '../../../types';
 import SearchBar from '../../components/searchBar';
 import AssignmentList from '../../components/assignmentList';
@@ -25,7 +25,7 @@ export default function StudentAssignmentsPage() {
     isLoading, 
     error, 
     refetch
-  } = useStudentAssignments();
+  } = useStudentAssignment();
 
   // Combine open and closed assignments
   const allAssignments = useMemo(() => {

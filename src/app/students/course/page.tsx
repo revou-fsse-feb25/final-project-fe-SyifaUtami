@@ -3,9 +3,7 @@ import { FC } from 'react';
 import { useAuth } from '../../context/authContext';
 import { Course, Unit } from '../../../types';
 import StudentUnitCard from '../../components/studentUnitCard';
-import { useStudentAssignments } from '../../context/useStudentAssignment';
-// You'll need to import your courses/units data
-import coursesData from '@/data/courses.json'; // Adjust path as needed
+import coursesData from '@/data/courses.json';
 
 interface CoursesData {
   courses: Course[];
@@ -53,45 +51,6 @@ const CourseOverview: FC = () => {
           <StudentUnitCard key={unit.code} unit={unit} />
         ))}
       </div>
-        <div>
-          {/* DEBUG LOGS DISPLAY */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded p-4 mb-6">
-            <h3 className="font-bold text-yellow-800 mb-2">Debug Logs:</h3>
-            <div className="text-sm text-yellow-700 max-h-96 overflow-y-auto">
-              {debugLogs.map((log, index) => (
-                <div key={index} className="font-mono text-xs mb-1">
-                  {log}
-                </div>
-              ))}
-            </div>
-            <button 
-              onClick={refetch}
-              className="mt-2 px-3 py-1 bg-yellow-200 hover:bg-yellow-300 rounded text-sm"
-            >
-              Refresh Data
-            </button>
-          </div>
-
-          {/* CLOSED ASSIGNMENTS */}
-          <h2>Closed Assignments</h2>
-          {closedAssignments.map((item) => (
-            <AssignmentCard
-              key={item.assignment.id}
-              assignment={item.assignment}
-              submission={item.submission}
-            />
-          ))}
-
-          {/* OPEN ASSIGNMENTS */}
-          <h2>Open Assignments</h2>
-          {openAssignments.map((item) => (
-            <AssignmentCard
-              key={item.assignment.id}
-              assignment={item.assignment}
-              submission={item.submission}
-            />
-          ))}
-        </div>
     </div>
   );
 };

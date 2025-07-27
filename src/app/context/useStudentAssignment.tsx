@@ -21,7 +21,7 @@ interface AssignmentWithSubmission {
   submission?: StudentSubmission;
 }
 
-interface UseStudentAssignmentsReturn {
+interface UseStudentAssignmentReturn {
   openAssignments: AssignmentWithSubmission[];
   closedAssignments: AssignmentWithSubmission[];
   isLoading: boolean;
@@ -29,7 +29,8 @@ interface UseStudentAssignmentsReturn {
   refetch: () => void;
 }
 
-export const useStudentAssignments = (): UseStudentAssignmentsReturn => {
+// Export the hook with singular name to match your file name
+export const useStudentAssignment = (): UseStudentAssignmentReturn => {
   const { user } = useAuth();
   const [openAssignments, setOpenAssignments] = useState<AssignmentWithSubmission[]>([]);
   const [closedAssignments, setClosedAssignments] = useState<AssignmentWithSubmission[]>([]);
@@ -50,9 +51,14 @@ export const useStudentAssignments = (): UseStudentAssignmentsReturn => {
       setIsLoading(true);
       setError(null);
 
+      console.log('Fetching assignments for student:', studentId);
+
       // Fetch open and closed assignments
       const openUrl = `/api/assignments?status=open&studentId=${studentId}&includeSubmissions=true`;
       const closedUrl = `/api/assignments?status=closed&studentId=${studentId}&includeSubmissions=true`;
+
+      console.log('Open URL:', openUrl);
+      console.log('Closed URL:', closedUrl);
 
       const [openResponse, closedResponse] = await Promise.all([
         fetch(openUrl),
@@ -68,9 +74,13 @@ export const useStudentAssignments = (): UseStudentAssignmentsReturn => {
         closedResponse.json()
       ]);
 
+      console.log('Open assignments data:', openData);
+      console.log('Closed assignments data:', closedData);
+
       // Combine assignments with their submissions
       const combineAssignmentsWithSubmissions = (data: any): AssignmentWithSubmission[] => {
         if (!data.assignments) {
+          console.log('No assignments found in data:', data);
           return [];
         }
         
@@ -79,6 +89,8 @@ export const useStudentAssignments = (): UseStudentAssignmentsReturn => {
             (sub: StudentSubmission) => sub.assignmentId === assignment.id
           );
           
+          console.log(`Assignment ${assignment.id} submission:`, submission);
+          
           return {
             assignment,
             submission
@@ -86,10 +98,17 @@ export const useStudentAssignments = (): UseStudentAssignmentsReturn => {
         });
       };
 
-      setOpenAssignments(combineAssignmentsWithSubmissions(openData));
-      setClosedAssignments(combineAssignmentsWithSubmissions(closedData));
+      const openAssignmentsWithSubmissions = combineAssignmentsWithSubmissions(openData);
+      const closedAssignmentsWithSubmissions = combineAssignmentsWithSubmissions(closedData);
+
+      console.log('Final open assignments:', openAssignmentsWithSubmissions);
+      console.log('Final closed assignments:', closedAssignmentsWithSubmissions);
+
+      setOpenAssignments(openAssignmentsWithSubmissions);
+      setClosedAssignments(closedAssignmentsWithSubmissions);
 
     } catch (err) {
+      console.error('Error fetching assignments:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch assignments');
     } finally {
       setIsLoading(false);

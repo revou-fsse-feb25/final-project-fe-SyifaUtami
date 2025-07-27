@@ -185,7 +185,7 @@ export default function LoginPage() {
         <div className="mt-4 text-center">
           <div className="text-xs text-gray-500 space-y-1">
             <p className="font-semibold">Demo Credentials:</p>
-            <p>Student: TomHolland@imajine.ac.id / student123</p>
+            <p>Student: TomHolland@imajine.ac.id / student123 | FlorencePugh@imajine.ac.id / student123</p>
             <p>Coordinator: coordinator@imajine.ac.id / coordinator123</p>
           </div>
         </div>
