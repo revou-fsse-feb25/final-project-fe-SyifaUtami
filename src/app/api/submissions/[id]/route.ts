@@ -1,3 +1,5 @@
+//detailed view for submissions
+
 import { NextResponse, NextRequest } from 'next/server';
 import assignmentsData from '@/data/assignments.json';
 import studentAssignmentsData from '@/data/studentAssignments.json';
@@ -43,69 +45,5 @@ export async function GET(
   } catch (error) {
     console.error('Submission by ID error:', error);
     return NextResponse.json({ error: 'Failed to load submission' }, { status: 500 });
-  }
-}
-
-// POST method for saving new submissions
-export async function POST(request: NextRequest) {
-  try {
-    const submissionData = await request.json();
-    
-    console.log('=== SUBMISSION SAVE ===');
-    console.log('Processing submission:', submissionData.submissionId);
-    
-    // Read current studentAssignments.json using the correct path
-    const filePath = path.join(process.cwd(), 'data/studentAssignments.json');
-    const fileContent = await readFile(filePath, 'utf8');
-    const studentAssignments = JSON.parse(fileContent);
-    
-    console.log('Current submissions count:', studentAssignments.length);
-    
-    // Check for duplicates (same student + assignment)
-    const existingIndex = studentAssignments.findIndex(
-      (submission: any) => 
-        submission.studentId === submissionData.studentId && 
-        submission.assignmentId === submissionData.assignmentId
-    );
-    
-    if (existingIndex !== -1) {
-      // Update existing submission
-      console.log('Updating existing submission:', studentAssignments[existingIndex].submissionId);
-      studentAssignments[existingIndex] = submissionData;
-      
-      // Save updated data
-      await writeFile(filePath, JSON.stringify(studentAssignments, null, 2));
-      
-      return NextResponse.json({ 
-        success: true,
-        message: 'Submission updated successfully!',
-        action: 'updated',
-        data: submissionData 
-      });
-    } else {
-      // Add new submission
-      console.log('Adding new submission');
-      studentAssignments.push(submissionData);
-      
-      // Save updated data
-      await writeFile(filePath, JSON.stringify(studentAssignments, null, 2));
-      
-      return NextResponse.json({ 
-        success: true,
-        message: submissionData.submissionStatus === 'submitted' 
-          ? 'Assignment submitted successfully!' 
-          : 'Draft saved successfully!',
-        action: 'created',
-        data: submissionData 
-      });
-    }
-    
-  } catch (error) {
-    console.error('Submission save error:', error);
-    return NextResponse.json({ 
-      success: false,
-      message: 'Failed to save submission. Please try again.',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
   }
 }

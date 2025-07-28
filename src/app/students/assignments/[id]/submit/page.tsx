@@ -1,3 +1,5 @@
+//Checks for existing work. if not submit yet, there is a submission page. Can add draft, submit the draft, or replace draft.
+
 'use client';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';

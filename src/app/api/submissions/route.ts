@@ -1,3 +1,9 @@
+/* 
+- Receives the Student's Work
+- Finds the Storage File
+- detect duplicate 
+*/
+
 import { NextResponse, NextRequest } from 'next/server';
 import { readFile, writeFile } from 'fs/promises';
 import path from 'path';

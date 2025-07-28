@@ -1,3 +1,4 @@
+//calculate weekly progress 
 'use client';
 import { useMemo } from 'react';
 import { useAuth } from './authContext';

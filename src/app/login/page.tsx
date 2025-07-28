@@ -87,9 +87,9 @@ export default function LoginPage() {
 
         // Redirect based on user type
         if (data.userType === 'coordinator') {
-          router.push('/coordinator/dashboard');
+          router.push('/coordinator/overview');
         } else {
-          router.push('/students/courses');
+          router.push('/students/course');
         }
       } else {
         setError('Invalid email or password');

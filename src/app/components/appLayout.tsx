@@ -150,36 +150,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           label: 'Students',
           href: '/coordinator/students',
           icon: faUsers,
-          children: [
-            {
-              id: 'student-performance',
-              label: 'Performance Overview',
-              href: '/coordinator/students/performance'
-            },
-            {
-              id: 'student-list',
-              label: 'Student List',
-              href: '/coordinator/students/list'
-            }
-          ]
         },
         {
           id: 'teachers',
           label: 'Teachers',
           href: '/coordinator/teachers',
           icon: faChalkboardTeacher,
-          children: [
-            {
-              id: 'teacher-directory',
-              label: 'Teacher Directory',
-              href: '/coordinator/teachers/directory'
-            },
-            {
-              id: 'teacher-assignments',
-              label: 'Assignments',
-              href: '/coordinator/teachers/assignments'
-            }
-          ]
         },
         {
           id: 'manage-units',
