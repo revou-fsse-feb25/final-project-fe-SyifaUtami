@@ -1,3 +1,5 @@
+//Returns all the details: title, description, due date, grade, teacher comment etc
+
 import { NextResponse, NextRequest } from 'next/server';
 import assignmentsData from '@/data/assignments.json';
 
