@@ -62,3 +62,44 @@ export interface Faculty {
   accessLevel: string;
   courseManaged: string[];
 }
+
+export interface CourseMetrics {
+  studentCount: number;
+  teacherCount: number;
+  assignmentCount: number;
+  avgProgress: number;
+  avgGrade: number;
+  submissionRate: number;
+  failedAssignments: number;
+}
+
+export interface UnitMetrics {
+  studentCount: number;
+  teacherCount: number;
+  assignmentCount: number;
+  avgProgress: number;
+  avgGrade: number;
+  submissionRate: number;
+  failedAssignments: number;
+}
+
+export interface LoadingState {
+  course: boolean;
+  metrics: boolean;
+  units: boolean;
+}
+
+export interface Student {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  courseCode: string;
+  year: number;
+}
+
+export interface StudentWithGrade extends Student {
+  averageGrade: number;
+  totalSubmissions: number;
+  submittedCount: number;
+}
