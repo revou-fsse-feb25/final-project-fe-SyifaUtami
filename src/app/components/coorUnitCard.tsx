@@ -20,7 +20,6 @@ interface StudentProgress {
   week2Material: "done" | "not done";
   week3Material: "done" | "not done";
   week4Material: "done" | "not done";
-  // Add more weeks as needed
 }
 
 interface Assignment {

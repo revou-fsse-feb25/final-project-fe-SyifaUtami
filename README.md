@@ -105,3 +105,14 @@ Students:
 
 
 .login directs to dashboard, should be on course
+
+
+NEST FOR MILESTONE
+
+User transaction account
+1. Nest js install dulu
+2. prisma ORM relationship for entity account
+3. Bikin koneksi ke database pgadmin, dbeaver
+4. seeding data
+5. User service + auth layers (generate jwt)
+6. Guard - generate token

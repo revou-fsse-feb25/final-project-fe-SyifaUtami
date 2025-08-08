@@ -1,3 +1,5 @@
+//check submission
+
 import { NextResponse, NextRequest } from 'next/server';
 import { readFile } from 'fs/promises';
 import path from 'path';
@@ -14,7 +16,6 @@ export async function GET(request: NextRequest) {
     
     console.log('Checking for existing submission:', { studentId, assignmentId });
     
-    // CORRECTED: File is in project root data/ folder, not src/data/
     const filePath = path.join(process.cwd(), 'data/studentAssignments.json');
     console.log('Reading file from:', filePath);
     

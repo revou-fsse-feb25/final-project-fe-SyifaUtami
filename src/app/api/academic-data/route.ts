@@ -1,3 +1,5 @@
+// handles courses, faculty, and assignments
+
 import { NextResponse } from 'next/server';
 import coursesData from '@/data/courses.json';
 import facultyData from '@/data/faculty.json';

@@ -1,3 +1,15 @@
+/* Filters
+Specific assignment (ALL detail is in assignments/id)
+Specific subject/unit
+Only open assignments
+
+includeSubmissions=true
+Finds all the student's submitted work
+Matches submissions to the filtered assignments
+Can filter by submission status
+
+*/
+
 import { NextResponse, NextRequest } from 'next/server';
 import assignmentsData from '@/data/assignments.json';
 import studentAssignmentsData from '@/data/studentAssignments.json';

@@ -1,5 +1,3 @@
-
-
 export interface StudentProgress {
   studentId: string;
   unitCode: string;
@@ -102,4 +100,33 @@ export interface StudentWithGrade extends Student {
   averageGrade: number;
   totalSubmissions: number;
   submittedCount: number;
+}
+
+// Extended submission interface with student information
+export interface EnrichedSubmission extends StudentSubmission {
+  studentName: string;
+  studentEmail: string;
+}
+
+// Response structure for assignment API with submissions
+export interface AssignmentWithSubmissions {
+  assignment: Assignment;
+  submissions: EnrichedSubmission[];
+  totalSubmissions: number;
+  submittedCount: number;
+  gradedCount: number;
+}
+
+// Request body for updating submission grades
+export interface UpdateGradeRequest {
+  grade: number;
+  comment?: string;
+  gradedBy?: string;
+}
+
+// Filter options for SearchBar component
+export interface FilterOption {
+  key: string;
+  label: string;
+  options: { value: string; label: string }[];
 }

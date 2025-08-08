@@ -1,8 +1,9 @@
-/* Fetches student's assignments from the API automatically
-Separates assignments by status into open vs closed categories
-Combines assignment data with submission data for each assignment
-Uses current logged-in user from AuthContext to personalize results
-Provides loading and error states for UI feedback */
+/* 
+- Fetches student's assignments from the API automatically
+- Separates assignments by status open vs closed
+- Combine assignment data + submission data for each
+- Uses current user from AuthContext to personalize 
+- Provides loading and error states for UI feedback */
 
 'use client';
 import { useState, useEffect } from 'react';
