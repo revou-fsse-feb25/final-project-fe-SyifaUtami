@@ -160,7 +160,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         {
           id: 'manage-units',
           label: 'Unit Management',
-          href: '/coordinator/units',
+          href: '/coordinator/manage-units',
           icon: faCog,
           children: [
             {
