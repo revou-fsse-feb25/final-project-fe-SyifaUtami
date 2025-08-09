@@ -1,12 +1,16 @@
-// handles courses, faculty, and assignments
-
 import { NextResponse } from 'next/server';
-import coursesData from '@/data/courses.json';
+import { readFile } from 'fs/promises';
+import path from 'path';
 import facultyData from '@/data/faculty.json';
 import assignmentsData from '@/data/assignments.json';
 
 export async function GET() {
   try {
+    // Read courses dynamically to get latest changes
+    const coursesPath = path.join(process.cwd(), 'data/courses.json');
+    const coursesContent = await readFile(coursesPath, 'utf8');
+    const coursesData = JSON.parse(coursesContent);
+    
     return NextResponse.json({
       courses: coursesData.courses,
       units: coursesData.units,

@@ -3,12 +3,23 @@
     {
       "code": "BM",
       "name": "Business Management",
-      "units": ["BM001", "BM002"]
+      "units": [
+        "BM001",
+        "BM002"
+      ]
     },
     {
       "code": "BA",
       "name": "Business Analytics",
-      "units": ["BA001", "BA002"]
+      "units": [
+        "BA001",
+        "BA002"
+      ]
+    },
+    {
+      "code": "TC",
+      "name": "TEST COURSE",
+      "units": []
     }
   ],
   "units": [

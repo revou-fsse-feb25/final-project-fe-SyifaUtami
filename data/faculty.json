@@ -8,7 +8,11 @@
       "email": "coordinator@imajine.ac.id",
       "password": "coordinator123",
       "accessLevel": "full",
-      "courseManaged": ["BM", "BA"]
+      "courseManaged": [
+        "BM",
+        "BA",
+        "TC"
+      ]
     }
   ],
   "teachers": [
@@ -17,28 +21,36 @@
       "firstName": "Damiano",
       "lastName": "David",
       "email": "damiano.david@imajine.ac.id",
-      "unitsTeached": ["BM001"]
+      "unitsTeached": [
+        "BM001"
+      ]
     },
     {
       "id": "t002",
       "firstName": "Victoria",
       "lastName": "De Angelis",
       "email": "victoria.deangelis@imajine.ac.id",
-      "unitsTeached": ["BM002"]
+      "unitsTeached": [
+        "BM002"
+      ]
     },
     {
       "id": "t003",
       "firstName": "Thomas",
       "lastName": "Raggi",
       "email": "thomas.raggi@imajine.ac.id",
-      "unitsTeached": ["BA001"]
+      "unitsTeached": [
+        "BA001"
+      ]
     },
     {
       "id": "t004",
       "firstName": "Ethan",
       "lastName": "Torchio",
       "email": "ethan.torchio@imajine.ac.id",
-      "unitsTeached": ["BA002"]
+      "unitsTeached": [
+        "BA002"
+      ]
     }
   ]
 }

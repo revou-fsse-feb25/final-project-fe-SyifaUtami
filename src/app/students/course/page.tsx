@@ -1,9 +1,8 @@
 'use client';
-import { FC } from 'react';
+import { FC, useState, useEffect } from 'react';
 import { useAuth } from '../../context/authContext';
 import { Course, Unit } from '../../../types';
 import StudentUnitCard from '../../components/studentUnitCard';
-import coursesData from '@/data/courses.json';
 
 interface CoursesData {
   courses: Course[];
@@ -12,6 +11,34 @@ interface CoursesData {
 
 const CourseOverview: FC = () => {
   const { user } = useAuth();
+  const [data, setData] = useState<CoursesData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        
+        const response = await fetch('/api/academic-data');
+        if (!response.ok) throw new Error('Failed to fetch data');
+        
+        const academicData = await response.json();
+        setData({
+          courses: academicData.courses,
+          units: academicData.units
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load course data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   // Early return if no user
   if (!user || !user.courseCode) {
@@ -22,7 +49,22 @@ const CourseOverview: FC = () => {
     );
   }
 
-  const data = coursesData as CoursesData;
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <span className="ml-2">Loading course data...</span>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="p-6">
+        <p className="text-red-600">{error || 'Failed to load course data'}</p>
+      </div>
+    );
+  }
 
   // Find the student's course
   const studentCourse = data.courses.find(course => course.code === user.courseCode);
