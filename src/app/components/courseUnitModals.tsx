@@ -271,7 +271,7 @@ export default function CourseUnitModals({
     try {
       setIsSubmitting(true);
 
-      const response = await fetch(`/api/courses/${courseToDelete.code}`, {
+      const response = await fetch(`/api/courses?code=${courseToDelete.code}`, {
         method: 'DELETE',
       });
 
