@@ -59,38 +59,57 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const isLoginPage = pathname === '/login';
 
   // Fetch courses data for navigation
-  useEffect(() => {
-    const fetchCoursesData = async () => {
-      if (!user) return;
+  const fetchCoursesData = async () => {
+    if (!user) return;
+    
+    try {
+      console.log('🔄 AppLayout: Fetching courses data for navigation...');
       
-      try {
-        const response = await fetch('/api/academic-data');
-        if (response.ok) {
-          const data = await response.json();
-          setCoursesData({
-            courses: data.courses,
-            units: data.units
-          });
-        }
-      } catch (error) {
-        console.error('Failed to fetch courses data for navigation:', error);
+      // Add cache busting parameter to ensure fresh data
+      const timestamp = new Date().getTime();
+      const response = await fetch(`/api/academic-data?t=${timestamp}`, {
+        cache: 'no-cache',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 AppLayout: Courses data received:', data.courses);
+        
+        setCoursesData({
+          courses: data.courses,
+          units: data.units
+        });
       }
-    };
+    } catch (error) {
+      console.error('❌ AppLayout: Failed to fetch courses data for navigation:', error);
+    }
+  };
 
+  useEffect(() => {
     fetchCoursesData();
 
     // Listen for course updates (when new courses are added)
     const handleCourseUpdate = () => {
+      console.log('🔔 AppLayout: Course update event received, refreshing navigation...');
       fetchCoursesData();
     };
 
+    // Listen for multiple event types to ensure we catch updates
     window.addEventListener('courseUpdated', handleCourseUpdate);
+    window.addEventListener('storage', handleCourseUpdate); // In case localStorage changes
     
-    // Also refresh every 30 seconds to catch any updates
-    const interval = setInterval(fetchCoursesData, 30000);
+    // Also refresh every 15 seconds to catch any updates
+    const interval = setInterval(() => {
+      console.log('⏰ AppLayout: Auto-refresh navigation data...');
+      fetchCoursesData();
+    }, 15000);
 
     return () => {
       window.removeEventListener('courseUpdated', handleCourseUpdate);
+      window.removeEventListener('storage', handleCourseUpdate);
       clearInterval(interval);
     };
   }, [user]);
@@ -121,7 +140,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
   // Generate navigation items based on user type
   const getNavigationItems = (): NavigationItem[] => {
-    if (!user || !coursesData) return [];
+    if (!user || !coursesData) {
+      console.log('🚫 AppLayout: No user or courses data available for navigation');
+      return [];
+    }
 
     if (userType === 'student') {
       const student = user as Student;
@@ -156,6 +178,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         coursesData.courses.find(course => course.code === courseCode)
       ).filter(Boolean) || [];
 
+      console.log('🎯 AppLayout: Coordinator managed courses:', managedCourses);
+
       return [
         {
           id: 'overview',
@@ -177,7 +201,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               return {
                 id: `unit-${unitCode}`,
                 label: unit ? `${unit.name} (${unit.code})` : unitCode,
-                href: `/coordinator/units/${unitCode}`
+                href: `/coordinator/courses/${course.code}/units/${unitCode}`
+                //coordinator/courses/BM/units/BM001
               };
             })
           }))
@@ -270,6 +295,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         {user && isMenuOpen && (
           <div className="w-64 bg-white border-r border-gray-200 min-h-screen">
             <div className="pt-5 pb-4 px-3">
+              {/* Debug info - remove in production */}
+              
               {navigationItems.map(item => renderNavigationItem(item))}
             </div>
           </div>

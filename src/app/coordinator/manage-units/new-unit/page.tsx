@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faSave } from '@fortawesome/free-solid-svg-icons';
-import { Course } from '../../../../types';
+import { Course, Teacher } from '../../../../types';
 
 export default function NewUnitPage() {
   const router = useRouter();
@@ -11,6 +11,7 @@ export default function NewUnitPage() {
   const courseCode = searchParams.get('courseCode');
 
   const [course, setCourse] = useState<Course | null>(null);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +22,8 @@ export default function NewUnitPage() {
     code: '',
     name: '',
     description: '',
-    currentWeek: 1
+    currentWeek: 1,
+    teacherId: '' // New field for teacher selection
   });
 
   // Helper function to show success message
@@ -30,9 +32,9 @@ export default function NewUnitPage() {
     setTimeout(() => setSuccessMessage(''), 3000);
   };
 
-  // Fetch course information
+  // Fetch course information and available teachers
   useEffect(() => {
-    const fetchCourse = async () => {
+    const fetchData = async () => {
       if (!courseCode) {
         setError('No course specified');
         setIsLoading(false);
@@ -41,7 +43,7 @@ export default function NewUnitPage() {
 
       try {
         const response = await fetch('/api/academic-data');
-        if (!response.ok) throw new Error('Failed to fetch course data');
+        if (!response.ok) throw new Error('Failed to fetch data');
 
         const data = await response.json();
         const foundCourse = data.courses.find((c: Course) => c.code === courseCode);
@@ -56,14 +58,18 @@ export default function NewUnitPage() {
             code: `${courseCode}0`
           }));
         }
+
+        // Set available teachers
+        setTeachers(data.teachers || []);
+
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load course');
+        setError(err instanceof Error ? err.message : 'Failed to load data');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchCourse();
+    fetchData();
   }, [courseCode]);
 
   // Handle form submission
@@ -83,7 +89,8 @@ export default function NewUnitPage() {
           name: newUnit.name.trim(),
           courseCode: courseCode,
           description: newUnit.description.trim() || 'Unit description will be added here.',
-          currentWeek: newUnit.currentWeek
+          currentWeek: newUnit.currentWeek,
+          teacherId: newUnit.teacherId || null // Include teacher assignment
         }),
       });
 
@@ -133,6 +140,11 @@ export default function NewUnitPage() {
       ...prev,
       [field]: value
     }));
+  };
+
+  // Get teacher display name
+  const getTeacherDisplayName = (teacher: Teacher): string => {
+    return `${teacher.firstName} ${teacher.lastName} (${teacher.email})`;
   };
 
   if (isLoading) {
@@ -247,7 +259,7 @@ export default function NewUnitPage() {
             </div>
           </div>
 
-          {/* Current Week */}
+          {/* Current Week and Teacher Assignment */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -267,6 +279,28 @@ export default function NewUnitPage() {
               </select>
               <p className="text-xs text-gray-500 mt-1">
                 What week is this unit currently on?
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Assign Teacher
+              </label>
+              <select
+                value={newUnit.teacherId}
+                onChange={(e) => handleInputChange('teacherId', e.target.value)}
+                className="lms-input w-full"
+                disabled={isSubmitting}
+              >
+                <option value="">No teacher assigned</option>
+                {teachers.map(teacher => (
+                  <option key={teacher.id} value={teacher.id}>
+                    {getTeacherDisplayName(teacher)}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Optional: Assign a teacher to be responsible for this unit
               </p>
             </div>
           </div>
@@ -330,6 +364,7 @@ export default function NewUnitPage() {
           <li>• <strong>Unit Code:</strong> Use course prefix + sequential number (e.g., {courseCode}001, {courseCode}002)</li>
           <li>• <strong>Unit Name:</strong> Clear, descriptive title that explains what students will learn</li>
           <li>• <strong>Current Week:</strong> Set to week 1 for new units, or current progress for ongoing units</li>
+          <li>• <strong>Teacher Assignment:</strong> Optionally assign a teacher who will be responsible for this unit</li>
           <li>• <strong>Description:</strong> Help students understand what this unit covers and its learning objectives</li>
         </ul>
       </div>

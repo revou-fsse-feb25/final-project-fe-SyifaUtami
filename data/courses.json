@@ -18,8 +18,10 @@
     },
     {
       "code": "TC",
-      "name": "TEST COURSE",
-      "units": []
+      "name": "TCCC",
+      "units": [
+        "TC001"
+      ]
     }
   ],
   "units": [
@@ -50,6 +52,13 @@
       "courseCode": "BA",
       "description": "Work on real-world projects, practise with the analysis tools used by professionals and get industry experience translating insights into impact. This unit provides hands-on training with industry-standard analytics software and methodologies.",
       "currentWeek": 3
+    },
+    {
+      "code": "TC001",
+      "name": "tctst",
+      "courseCode": "TC",
+      "description": "22222",
+      "currentWeek": 1
     }
   ]
 }
