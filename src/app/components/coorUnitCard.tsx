@@ -1,8 +1,9 @@
+// src/app/components/coorUnitCard.tsx
 'use client';
 import { FC } from 'react';
 import Link from 'next/link';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUsers } from '@fortawesome/free-solid-svg-icons';
+import { faUsers, faEdit } from '@fortawesome/free-solid-svg-icons';
 import StudentProgressComponent from './studentProgress';
 
 interface Unit {
@@ -42,11 +43,11 @@ const CoordinatorUnitCard: FC<CoordinatorUnitCardProps> = ({
   unit, 
   allStudentProgress, 
   assignments, 
-  className = '' 
+  className = ''
 }) => {
   return (
     <Link href={`/coordinator/manage-units/edit-units/${unit.code}`}>
-      <div className={`lms-card hover:shadow-lg transition-all duration-200 cursor-pointer ${className}`}>
+      <div className={`lms-card hover:shadow-lg transition-all duration-200 cursor-pointer relative ${className}`}>
         {/* Color Header */}
         <div 
           className="h-20 rounded-t-lg mb-4 flex items-center justify-center"

@@ -1,12 +1,12 @@
+// src/app/coordinator/manage-units/page.tsx
 'use client';
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faTimes } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faTimes, faUsers } from '@fortawesome/free-solid-svg-icons';
 import CoordinatorUnitCard from '../../components/coorUnitCard';
 import CourseUnitModals from '../../components/courseUnitModals';
+import StudentProgressComponent from '../../components/studentProgress';
 import { Course, Unit, StudentProgress, Assignment } from '../../../types';
-
-type ModalType = 'addCourse' | 'deleteCourse' | 'deleteUnit' | null;
 
 interface ManageUnitsData {
   courses: Course[];
@@ -15,18 +15,23 @@ interface ManageUnitsData {
   assignments: Assignment[];
 }
 
+type ModalType = 'addCourse' | 'addUnit' | 'deleteCourse' | 'deleteUnit' | 'none';
+
 export default function ManageUnitsPage() {
   const [data, setData] = useState<ManageUnitsData | null>(null);
   const [coordinators, setCoordinators] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string>('');
   
-  // Unified modal state
-  const [modalType, setModalType] = useState<ModalType>(null);
+  // Modal states
+  const [modalType, setModalType] = useState<ModalType>('none');
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  
+  // Delete states
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
   const [unitToDelete, setUnitToDelete] = useState<Unit | null>(null);
   const [deleteMode, setDeleteMode] = useState<'none' | 'courses' | 'units'>('none');
+  const [successMessage, setSuccessMessage] = useState<string>('');
 
   // Helper function to show success message
   const showSuccessMessage = (message: string) => {
@@ -41,6 +46,7 @@ export default function ManageUnitsPage() {
         setIsLoading(true);
         setError(null);
 
+        // Fetch academic data (courses, units, etc.)
         const [academicResponse, studentsResponse] = await Promise.all([
           fetch('/api/academic-data'),
           fetch('/api/students?includeData=true')
@@ -60,6 +66,7 @@ export default function ManageUnitsPage() {
           assignments: academicData.assignments || []
         });
 
+        // Set coordinators for the dropdown
         setCoordinators(academicData.faculty || []);
 
       } catch (err) {
@@ -81,6 +88,19 @@ export default function ManageUnitsPage() {
         courses: [...prevData.courses, newCourse]
       };
     });
+    window.dispatchEvent(new CustomEvent('courseUpdated'));
+  };
+
+  // Handle unit added
+  const handleUnitAdded = (newUnit: Unit) => {
+    setData(prevData => {
+      if (!prevData) return prevData;
+      return {
+        ...prevData,
+        units: [...prevData.units, newUnit]
+      };
+    });
+    window.dispatchEvent(new CustomEvent('courseUpdated'));
   };
 
   // Handle course deleted
@@ -93,7 +113,8 @@ export default function ManageUnitsPage() {
         units: prevData.units.filter(u => u.courseCode !== deletedCourse.code)
       };
     });
-    setDeleteMode('none');
+    resetDeleteMode();
+    window.dispatchEvent(new CustomEvent('courseUpdated'));
   };
 
   // Handle unit deleted
@@ -105,26 +126,12 @@ export default function ManageUnitsPage() {
         units: prevData.units.filter(u => u.code !== deletedUnit.code)
       };
     });
+    resetDeleteMode();
+  };
+
+  // Reset delete mode
+  const resetDeleteMode = () => {
     setDeleteMode('none');
-  };
-
-  // Handle modal close
-  const handleModalClose = () => {
-    setModalType(null);
-    setCourseToDelete(null);
-    setUnitToDelete(null);
-  };
-
-  // Handle delete course button click
-  const handleDeleteCourseClick = (course: Course) => {
-    setCourseToDelete(course);
-    setModalType('deleteCourse');
-  };
-
-  // Handle delete unit button click
-  const handleDeleteUnitClick = (unit: Unit) => {
-    setUnitToDelete(unit);
-    setModalType('deleteUnit');
   };
 
   // Get units for a specific course with progress data
@@ -137,11 +144,16 @@ export default function ManageUnitsPage() {
         const unitProgress = data.allStudentProgress.filter(progress => 
           progress.unitCode === unit.code
         );
+        
         const unitAssignments = data.assignments.filter(assignment => 
           assignment.unitCode === unit.code
         );
 
-        return { unit, progress: unitProgress, assignments: unitAssignments };
+        return {
+          unit,
+          progress: unitProgress,
+          assignments: unitAssignments
+        };
       });
   };
 
@@ -174,15 +186,19 @@ export default function ManageUnitsPage() {
               Manage Courses and Units
             </h1>
             <p className="text-lg text-gray-600">
-              Add and manage courses and their units
+              Add, edit, and manage courses and their units
             </p>
           </div>
 
-          {/* Delete Mode Controls */}
+          {/* Action Controls */}
           <div className="flex gap-3">
             <button 
               onClick={() => setDeleteMode(deleteMode === 'units' ? 'none' : 'units')}
-              className={`px-4 py-2 rounded transition-colors text-white hover:bg-opacity-90`}
+              className={`px-4 py-2 rounded transition-colors ${
+                deleteMode === 'units' 
+                  ? 'text-white' 
+                  : 'text-white hover:bg-opacity-90'
+              }`}
               style={{ backgroundColor: 'var(--primary-red)' }}
             >
               {deleteMode === 'units' ? 'Cancel Delete Units' : 'Delete Units'}
@@ -190,7 +206,11 @@ export default function ManageUnitsPage() {
             
             <button 
               onClick={() => setDeleteMode(deleteMode === 'courses' ? 'none' : 'courses')}
-              className={`px-4 py-2 rounded transition-colors text-white hover:bg-opacity-90`}
+              className={`px-4 py-2 rounded transition-colors ${
+                deleteMode === 'courses' 
+                  ? 'text-white' 
+                  : 'text-white hover:bg-opacity-90'
+              }`}
               style={{ backgroundColor: 'var(--primary-red)' }}
             >
               {deleteMode === 'courses' ? 'Cancel Delete Courses' : 'Delete Courses'}
@@ -223,7 +243,10 @@ export default function ManageUnitsPage() {
                   {/* Delete Course X Button */}
                   {deleteMode === 'courses' && (
                     <button
-                      onClick={() => handleDeleteCourseClick(course)}
+                      onClick={() => {
+                        setCourseToDelete(course);
+                        setModalType('deleteCourse');
+                      }}
                       className="ml-3 w-8 h-8 bg-white rounded-full hover:bg-gray-100 transition-colors flex items-center justify-center"
                       style={{ color: 'var(--primary-red)' }}
                       title="Delete Course"
@@ -233,16 +256,17 @@ export default function ManageUnitsPage() {
                   )}
                 </div>
                 
-                <div className="flex items-center">
-                  <p className="text-gray-600 mr-4">{courseUnits.length} units</p>
+                <div className="flex items-center gap-3">
+                  <p className="text-gray-600">{courseUnits.length} units</p>
                   <button 
                     onClick={() => {
-                      window.location.href = `/coordinator/manage-units/new-unit?courseCode=${course.code}`;
+                      setSelectedCourse(course);
+                      setModalType('addUnit');
                     }}
                     className="lms-button-primary"
                   >
                     <FontAwesomeIcon icon={faPlus} className="mr-2" />
-                    Add Units
+                    Add Unit
                   </button>
                 </div>
               </div>
@@ -252,26 +276,65 @@ export default function ManageUnitsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {courseUnits.map(({ unit, progress, assignments }) => (
                     <div key={unit.code} className="relative">
-                      <CoordinatorUnitCard
-                        unit={unit}
-                        allStudentProgress={progress}
-                        assignments={assignments}
-                      />
-                      
-                      {/* Delete Unit X Button */}
-                      {deleteMode === 'units' && (
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleDeleteUnitClick(unit);
-                          }}
-                          className="absolute top-2 right-2 w-8 h-8 bg-white rounded-full hover:bg-gray-100 transition-colors flex items-center justify-center z-10"
-                          style={{ color: 'var(--primary-red)' }}
-                          title="Delete Unit"
-                        >
-                          <FontAwesomeIcon icon={faTimes} className="text-sm" />
-                        </button>
+                      {deleteMode === 'units' ? (
+                        // During delete mode, disable the link and show delete button
+                        <div className="relative">
+                          <div className="lms-card hover:shadow-lg transition-all duration-200 relative opacity-75 cursor-not-allowed">
+                            {/* Color Header */}
+                            <div 
+                              className="h-20 rounded-t-lg mb-4 flex items-center justify-center"
+                              style={{ backgroundColor: 'var(--primary-red)' }}
+                            >
+                              <FontAwesomeIcon icon={faUsers} className="text-white text-2xl" />
+                            </div>
+                            
+                            {/* Unit Info */}
+                            <div className="space-y-3">
+                              <div>
+                                <h3 className="text-lg font-semibold" style={{ color: 'var(--text-black)' }}>
+                                  {unit.name}
+                                </h3>
+                                <p className="text-sm text-gray-600">
+                                  {unit.code} • {progress.length} students
+                                </p>
+                              </div>
+                              
+                              {/* Progress Section */}
+                              <div className="text-center">
+                                <p className="text-sm font-medium text-gray-700 mb-1">Average Progress</p>
+                                <div className="text-xl font-bold" style={{ color: 'var(--primary-dark)' }}>
+                                  <StudentProgressComponent 
+                                    allProgressData={progress}
+                                    assignments={assignments}
+                                    mode="average"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Delete Unit X Button */}
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setUnitToDelete(unit);
+                              setModalType('deleteUnit');
+                            }}
+                            className="absolute top-2 right-2 w-8 h-8 bg-white rounded-full hover:bg-gray-100 transition-colors flex items-center justify-center z-10 shadow-lg border-2 border-red-500"
+                            style={{ color: 'var(--primary-red)' }}
+                            title="Delete Unit"
+                          >
+                            <FontAwesomeIcon icon={faTimes} className="text-sm" />
+                          </button>
+                        </div>
+                      ) : (
+                        // Normal mode - clickable card
+                        <CoordinatorUnitCard
+                          unit={unit}
+                          allStudentProgress={progress}
+                          assignments={assignments}
+                        />
                       )}
                     </div>
                   ))}
@@ -279,7 +342,7 @@ export default function ManageUnitsPage() {
               ) : (
                 <div className="text-center py-8">
                   <p className="text-gray-500 text-lg">No units found for this course.</p>
-                  <p className="text-gray-400">Click "Add Units" to get started.</p>
+                  <p className="text-gray-400">Click "Add Unit" to get started.</p>
                 </div>
               )}
             </div>
@@ -303,16 +366,20 @@ export default function ManageUnitsPage() {
         </div>
       </div>
 
-      {/* Unified Modal Component */}
+      {/* Modals */}
       <CourseUnitModals
         modalType={modalType}
-        onClose={handleModalClose}
+        onClose={() => setModalType('none')}
         coordinators={coordinators}
         onCourseAdded={handleCourseAdded}
         courseToDelete={courseToDelete}
         onCourseDeleted={handleCourseDeleted}
+        selectedCourse={selectedCourse}
+        onUnitAdded={handleUnitAdded}
         unitToDelete={unitToDelete}
         onUnitDeleted={handleUnitDeleted}
+        allCourses={data?.courses || []}
+        allUnits={data?.units || []}
         onSuccess={showSuccessMessage}
       />
     </div>
