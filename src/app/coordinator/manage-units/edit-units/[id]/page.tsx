@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faSave, faEdit } from '@fortawesome/free-solid-svg-icons';
-import { Course, Unit } from '../../../../../types';
+import { faArrowLeft, faSave, faEdit, faUser } from '@fortawesome/free-solid-svg-icons';
+import { Course, Unit, Teacher } from '../../../../../types';
 
 export default function EditUnitsPage() {
   const router = useRouter();
@@ -13,6 +13,8 @@ export default function EditUnitsPage() {
 
   const [unit, setUnit] = useState<Unit | null>(null);
   const [course, setCourse] = useState<Course | null>(null);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [currentTeacher, setCurrentTeacher] = useState<Teacher | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +25,8 @@ export default function EditUnitsPage() {
     code: '',
     name: '',
     description: '',
-    currentWeek: 1
+    currentWeek: 1,
+    teacherId: '' // Add teacher ID to form state
   });
 
   // Helper function to show success message
@@ -52,16 +55,27 @@ export default function EditUnitsPage() {
           setError('Unit not found');
         } else {
           setUnit(foundUnit);
+          
+          // Find current teacher for this unit
+          const unitTeacher = data.teachers.find((t: Teacher) => 
+            t.unitsTeached && t.unitsTeached.includes(foundUnit.code)
+          );
+          setCurrentTeacher(unitTeacher || null);
+          
           setEditedUnit({
             code: foundUnit.code,
             name: foundUnit.name,
             description: foundUnit.description,
-            currentWeek: foundUnit.currentWeek
+            currentWeek: foundUnit.currentWeek,
+            teacherId: unitTeacher?.id || '' // Set current teacher ID
           });
 
           // Find the course this unit belongs to
           const foundCourse = data.courses.find((c: Course) => c.code === foundUnit.courseCode);
           setCourse(foundCourse || null);
+          
+          // Set available teachers
+          setTeachers(data.teachers || []);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load unit');
@@ -73,51 +87,7 @@ export default function EditUnitsPage() {
     fetchData();
   }, [unitCode]);
 
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validateForm()) return;
-
-    try {
-      setIsSubmitting(true);
-
-      const response = await fetch(`/api/units/${unitCode}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: editedUnit.code.trim(),
-          name: editedUnit.name.trim(),
-          description: editedUnit.description.trim(),
-          currentWeek: editedUnit.currentWeek,
-          courseCode: unit?.courseCode // Keep the same course
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to update unit');
-      }
-
-      const result = await response.json();
-      showSuccessMessage('Unit updated successfully!');
-      
-      // Emit event to notify other components about unit update
-      window.dispatchEvent(new CustomEvent('courseUpdated'));
-      
-      // Redirect back to manage units after 2 seconds
-      setTimeout(() => {
-        router.push('/coordinator/manage-units');
-      }, 2000);
-
-    } catch (err) {
-      alert(`Failed to update unit: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Form validation (basic validation only - uniqueness handled by API)
+  // Validation function
   const validateForm = (): boolean => {
     if (!editedUnit.code.trim()) {
       alert('Unit code is required');
@@ -129,39 +99,122 @@ export default function EditUnitsPage() {
       return false;
     }
     
-    if (editedUnit.currentWeek < 1 || editedUnit.currentWeek > 12) {
-      alert('Current week must be between 1 and 12');
-      return false;
-    }
-    
     return true;
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm()) return;
+
+    try {
+      setIsSubmitting(true);
+
+      console.log('Submitting unit update:', {
+        code: editedUnit.code.trim(),
+        name: editedUnit.name.trim(),
+        description: editedUnit.description.trim(),
+        currentWeek: editedUnit.currentWeek,
+        courseCode: unit?.courseCode,
+        oldTeacherId: currentTeacher?.id || null,
+        newTeacherId: editedUnit.teacherId || null
+      });
+
+      // Update unit basic information
+      const unitResponse = await fetch(`/api/units/${unitCode}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: editedUnit.code.trim(),
+          name: editedUnit.name.trim(),
+          description: editedUnit.description.trim(),
+          currentWeek: editedUnit.currentWeek,
+          courseCode: unit?.courseCode, // Keep the same course
+          oldTeacherId: currentTeacher?.id || null,
+          newTeacherId: editedUnit.teacherId || null
+        }),
+      });
+
+      console.log('Update response status:', unitResponse.status);
+      console.log('Update response ok:', unitResponse.ok);
+
+      if (!unitResponse.ok) {
+        const errorText = await unitResponse.text();
+        console.log('Error response text:', errorText);
+        
+        let errorData: any = {};
+        try {
+          errorData = JSON.parse(errorText);
+        } catch (parseError) {
+          console.log('Could not parse error response as JSON');
+        }
+        
+        throw new Error(errorData.error || errorData.details || errorText || 'Failed to update unit');
+      }
+
+      const result = await unitResponse.json();
+      console.log('Unit updated successfully:', result);
+      
+      showSuccessMessage('Unit updated successfully!');
+      
+      // Emit event to notify other components about unit update
+      window.dispatchEvent(new CustomEvent('courseUpdated'));
+      
+      // Redirect back to manage units after 2 seconds
+      setTimeout(() => {
+        router.push('/coordinator/manage-units');
+      }, 2000);
+
+    } catch (err) {
+      console.error('Unit update error:', err);
+      alert(`Failed to update unit: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Handle input changes
   const handleInputChange = (field: string, value: string | number) => {
-    setEditedUnit(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setEditedUnit(prev => ({ ...prev, [field]: value }));
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[var(--primary-red)]"></div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading unit information...</p>
+        </div>
       </div>
     );
   }
 
-  if (error || !unit || !course) {
+  if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-semibold mb-4" style={{ color: 'var(--primary-red)' }}>Error</h1>
-          <p className="text-lg text-gray-600 mb-4">{error || 'Unit not found'}</p>
+          <p className="text-red-600 text-xl mb-4">❌ {error}</p>
           <button 
             onClick={() => router.push('/coordinator/manage-units')}
-            className="lms-button-primary"
+            className="lms-button-secondary"
+          >
+            <FontAwesomeIcon icon={faArrowLeft} className="mr-2" />
+            Back to Manage Units
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!unit || !course) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600 text-xl mb-4">Unit or course not found</p>
+          <button 
+            onClick={() => router.push('/coordinator/manage-units')}
+            className="lms-button-secondary"
           >
             <FontAwesomeIcon icon={faArrowLeft} className="mr-2" />
             Back to Manage Units
@@ -172,17 +225,23 @@ export default function EditUnitsPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
-      {/* Page Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-gray-50 p-6">
+      {/* Header */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-4xl font-bold mb-2" style={{ color: 'var(--text-black)' }}>
+            <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--text-black)' }}>
               Edit Unit
             </h1>
             <p className="text-lg text-gray-600">
               Edit <strong>{unit.name} ({unit.code})</strong> in <strong>{course.name} ({course.code})</strong>
             </p>
+            {currentTeacher && (
+              <p className="text-sm text-blue-600 mt-1">
+                <FontAwesomeIcon icon={faUser} className="mr-1" />
+                Currently taught by: {currentTeacher.firstName} {currentTeacher.lastName}
+              </p>
+            )}
           </div>
           
           <button 
@@ -233,35 +292,11 @@ export default function EditUnitsPage() {
                 value={editedUnit.code}
                 onChange={(e) => handleInputChange('code', e.target.value)}
                 className="lms-input w-full"
-                placeholder="e.g., BM001, BA002"
-                disabled={isSubmitting}
-                required
-              />
-              {editedUnit.code !== unit.code && (
-                <p className="text-xs text-amber-600 mt-1">
-                  ⚠️ Changing the unit code will affect all related assignments and student progress
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Unit Name *
-              </label>
-              <input
-                type="text"
-                value={editedUnit.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                className="lms-input w-full"
-                placeholder="e.g., Introduction to Programming"
                 disabled={isSubmitting}
                 required
               />
             </div>
-          </div>
 
-          {/* Current Week */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Current Week
@@ -278,13 +313,25 @@ export default function EditUnitsPage() {
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-500 mt-1">
-                What week is this unit currently on?
-              </p>
             </div>
           </div>
 
-          {/* Description */}
+          {/* Unit Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Unit Name *
+            </label>
+            <input
+              type="text"
+              value={editedUnit.name}
+              onChange={(e) => handleInputChange('name', e.target.value)}
+              className="lms-input w-full"
+              disabled={isSubmitting}
+              required
+            />
+          </div>
+
+          {/* Unit Description */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Unit Description
@@ -294,16 +341,46 @@ export default function EditUnitsPage() {
               onChange={(e) => handleInputChange('description', e.target.value)}
               className="lms-input w-full"
               rows={4}
-              placeholder="Enter a detailed description of this unit..."
               disabled={isSubmitting}
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Provide a description for students and coordinators
-            </p>
           </div>
 
-          {/* Form Actions */}
-          <div className="flex justify-end gap-4 pt-6 border-t">
+          {/* Teacher Assignment */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <FontAwesomeIcon icon={faUser} className="mr-2" />
+              Assigned Teacher
+            </label>
+            <select
+              value={editedUnit.teacherId}
+              onChange={(e) => handleInputChange('teacherId', e.target.value)}
+              className="lms-input w-full"
+              disabled={isSubmitting}
+            >
+              <option value="">No teacher assigned</option>
+              {teachers.map((teacher) => (
+                <option key={teacher.id} value={teacher.id}>
+                  {teacher.firstName} {teacher.lastName} ({teacher.email})
+                  {teacher.unitsTeached && teacher.unitsTeached.length > 0 && 
+                    ` - Currently teaching ${teacher.unitsTeached.length} unit(s)`
+                  }
+                </option>
+              ))}
+            </select>
+            {editedUnit.teacherId && editedUnit.teacherId !== (currentTeacher?.id || '') && (
+              <p className="text-xs text-amber-600 mt-1">
+                ⚠️ Changing teacher assignment will update the teacher's unit list
+              </p>
+            )}
+            {!editedUnit.teacherId && currentTeacher && (
+              <p className="text-xs text-amber-600 mt-1">
+                ⚠️ Removing teacher assignment will remove this unit from {currentTeacher.firstName} {currentTeacher.lastName}'s teaching list
+              </p>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-4 pt-6 border-t border-gray-200">
             <button
               type="button"
               onClick={() => router.push('/coordinator/manage-units')}
@@ -321,7 +398,7 @@ export default function EditUnitsPage() {
               {isSubmitting ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Updating Unit...
+                  Updating...
                 </>
               ) : (
                 <>
@@ -332,19 +409,6 @@ export default function EditUnitsPage() {
             </button>
           </div>
         </form>
-      </div>
-
-      {/* Warning Section */}
-      <div className="mt-8 bg-amber-50 border border-amber-200 rounded-lg p-6">
-        <h3 className="text-lg font-semibold mb-3 text-amber-800">
-          Important Notes
-        </h3>
-        <ul className="text-sm text-amber-700 space-y-2">
-          <li>• <strong>Unit Code Changes:</strong> Changing the unit code will affect all assignments and student progress linked to this unit</li>
-          <li>• <strong>Current Week:</strong> This affects what content students see as "current" in their unit view</li>
-          <li>• <strong>Description:</strong> This helps students understand what the unit covers and learning objectives</li>
-          <li>• <strong>Validation:</strong> Unit codes must be unique across all courses</li>
-        </ul>
       </div>
     </div>
   );

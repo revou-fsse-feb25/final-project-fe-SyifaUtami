@@ -1,48 +1,35 @@
+// src/app/api/units/route.ts
 import { NextResponse, NextRequest } from 'next/server';
 import { writeFile, readFile } from 'fs/promises';
 import path from 'path';
 
-// GET - Fetch unit by ID
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// GET - Fetch all units
+export async function GET() {
   try {
-    const { id } = await params;
-    
     const dataPath = path.join(process.cwd(), 'data/courses.json');
     const currentData = await readFile(dataPath, 'utf8');
     const coursesData = JSON.parse(currentData);
     
-    const unit = coursesData.units.find((u: any) => u.code === id);
-    
-    if (!unit) {
-      return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
-    }
-    
-    return NextResponse.json({ unit });
+    return NextResponse.json({ units: coursesData.units });
     
   } catch (error) {
-    console.error('Unit by ID GET error:', error);
-    return NextResponse.json({ error: 'Failed to load unit' }, { status: 500 });
+    console.error('Units GET error:', error);
+    return NextResponse.json({ error: 'Failed to load units' }, { status: 500 });
   }
 }
 
-// PUT - Update unit by ID
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// POST - Create new unit
+export async function POST(request: NextRequest) {
   try {
-    const { id } = await params;
     const body = await request.json();
     
-    console.log('Updating unit:', id, body);
+    console.log('Creating unit with data:', body);
     
     // Validate request body
-    if (!body.code || !body.name) {
+    if (!body.code || !body.name || !body.courseCode) {
+      console.log('Validation failed - missing required fields');
       return NextResponse.json(
-        { error: 'Unit code and name are required' }, 
+        { error: 'Unit code, name, and courseCode are required' }, 
         { status: 400 }
       );
     }
@@ -52,234 +39,103 @@ export async function PUT(
     const currentData = await readFile(dataPath, 'utf8');
     const coursesData = JSON.parse(currentData);
     
-    // Find unit to update
-    const unitIndex = coursesData.units.findIndex((u: any) => u.code === id);
+    console.log('Current courses data loaded');
     
-    if (unitIndex === -1) {
-      return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
+    // Check if unit code already exists
+    const existingUnit = coursesData.units.find((u: any) => u.code === body.code.trim());
+    if (existingUnit) {
+      console.log('Unit code already exists:', body.code);
+      return NextResponse.json(
+        { error: 'A unit with this code already exists' },
+        { status: 409 }
+      );
     }
     
-    const oldUnit = coursesData.units[unitIndex];
-    const newUnitCode = body.code.trim();
-    
-    // If unit code is changing, check for conflicts
-    if (newUnitCode !== id) {
-      const existingUnit = coursesData.units.find((u: any) => u.code === newUnitCode);
-      if (existingUnit) {
-        return NextResponse.json(
-          { error: 'A unit with this code already exists' },
-          { status: 409 }
-        );
-      }
+    // Check if course exists
+    const course = coursesData.courses.find((c: any) => c.code === body.courseCode);
+    if (!course) {
+      console.log('Course not found:', body.courseCode);
+      return NextResponse.json(
+        { error: 'Course not found' },
+        { status: 404 }
+      );
     }
     
-    // Update unit data
-    const updatedUnit = {
-      ...oldUnit,
-      code: newUnitCode,
+    console.log('Course found:', course);
+    
+    // Create new unit
+    const newUnit = {
+      code: body.code.trim(),
       name: body.name.trim(),
-      description: body.description || oldUnit.description,
-      currentWeek: body.currentWeek || oldUnit.currentWeek
+      courseCode: body.courseCode,
+      description: body.description?.trim() || '',
+      currentWeek: body.currentWeek || 1
     };
     
-    coursesData.units[unitIndex] = updatedUnit;
+    console.log('New unit object:', newUnit);
     
-    // If unit code changed, update course's units array
-    if (newUnitCode !== id) {
-      const parentCourse = coursesData.courses.find((c: any) => c.code === oldUnit.courseCode);
-      if (parentCourse && parentCourse.units) {
-        const unitIndexInCourse = parentCourse.units.indexOf(id);
-        if (unitIndexInCourse !== -1) {
-          parentCourse.units[unitIndexInCourse] = newUnitCode;
-        }
-      }
+    // Add unit to units array
+    coursesData.units.push(newUnit);
+    
+    // Add unit to course's units array
+    if (!course.units) {
+      course.units = [];
     }
+    course.units.push(newUnit.code);
     
-    // Write updated data back to file
+    console.log('Updated course units:', course.units);
+    
+    // Write courses data
     await writeFile(dataPath, JSON.stringify(coursesData, null, 2));
+    console.log('Unit data written to file successfully');
     
-    // Handle teacher assignment changes if provided
-    if (body.oldTeacherId !== undefined || body.newTeacherId !== undefined) {
+    // Handle teacher assignment if provided
+    if (body.teacherId) {
       try {
-        await handleTeacherAssignmentChange(
-          id, // old unit code
-          newUnitCode, // new unit code
-          body.oldTeacherId,
-          body.newTeacherId
-        );
+        await assignTeacherToUnit(body.teacherId, newUnit.code);
+        console.log(`Assigned teacher ${body.teacherId} to unit ${newUnit.code}`);
       } catch (teacherError) {
-        console.warn(`Failed to update teacher assignments: ${teacherError}`);
-        // Don't fail the unit update, just log the warning
+        console.warn(`Failed to assign teacher to unit: ${teacherError}`);
+        // Don't fail the entire operation if teacher assignment fails
       }
     }
     
-    console.log('Unit updated successfully:', updatedUnit);
+    console.log('Unit created successfully:', newUnit);
     
     return NextResponse.json({
-      message: 'Unit updated successfully',
-      unit: updatedUnit
-    });
+      message: 'Unit created successfully',
+      unit: newUnit
+    }, { status: 201 });
     
   } catch (error) {
-    console.error('Unit PUT error:', error);
+    console.error('Unit POST error:', error);
     return NextResponse.json({ 
-      error: 'Failed to update unit',
+      error: 'Failed to create unit',
       details: error instanceof Error ? error.message : 'Unknown error occurred'
     }, { status: 500 });
   }
 }
 
-// DELETE - Delete unit by ID
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    
-    console.log('Deleting unit:', id);
-    
-    // Read current courses data
-    const dataPath = path.join(process.cwd(), 'data/courses.json');
-    const currentData = await readFile(dataPath, 'utf8');
-    const coursesData = JSON.parse(currentData);
-    
-    // Find unit to delete
-    const unitIndex = coursesData.units.findIndex((u: any) => u.code === id);
-    
-    if (unitIndex === -1) {
-      return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
-    }
-    
-    const unitToDelete = coursesData.units[unitIndex];
-    
-    // Remove unit from its parent course's units array
-    const parentCourse = coursesData.courses.find((c: any) => c.code === unitToDelete.courseCode);
-    if (parentCourse && parentCourse.units) {
-      parentCourse.units = parentCourse.units.filter((u: string) => u !== id);
-    }
-    
-    // Remove the unit
-    coursesData.units.splice(unitIndex, 1);
-    
-    // Write updated data back to file
-    await writeFile(dataPath, JSON.stringify(coursesData, null, 2));
-    
-    // Remove unit from all teachers
-    try {
-      await removeUnitFromAllTeachers(id);
-    } catch (teacherError) {
-      console.warn(`Failed to remove unit from teachers: ${teacherError}`);
-    }
-    
-    console.log('Unit deleted successfully:', unitToDelete);
-    
-    return NextResponse.json({
-      message: 'Unit deleted successfully',
-      unit: unitToDelete
-    });
-    
-  } catch (error) {
-    console.error('Unit DELETE error:', error);
-    return NextResponse.json({ 
-      error: 'Failed to delete unit',
-      details: error instanceof Error ? error.message : 'Unknown error occurred'
-    }, { status: 500 });
-  }
-}
-
-// Helper function to handle teacher assignment changes
-async function handleTeacherAssignmentChange(
-  oldUnitCode: string,
-  newUnitCode: string,
-  oldTeacherId: string | null,
-  newTeacherId: string | null
-): Promise<void> {
+// Helper function to assign teacher to unit
+async function assignTeacherToUnit(teacherId: string, unitCode: string): Promise<void> {
   const facultyPath = path.join(process.cwd(), 'data/faculty.json');
   
   try {
     const facultyContent = await readFile(facultyPath, 'utf8');
     const facultyData = JSON.parse(facultyContent);
     
-    let hasChanges = false;
-    
-    // Remove unit from old teacher if changing
-    if (oldTeacherId && oldTeacherId !== newTeacherId) {
-      const oldTeacher = facultyData.teachers.find((t: any) => t.id === oldTeacherId);
-      if (oldTeacher && oldTeacher.unitsTeached) {
-        const oldIndex = oldTeacher.unitsTeached.indexOf(oldUnitCode);
-        if (oldIndex !== -1) {
-          oldTeacher.unitsTeached.splice(oldIndex, 1);
-          hasChanges = true;
-          console.log(`Removed unit ${oldUnitCode} from teacher ${oldTeacher.firstName} ${oldTeacher.lastName}`);
-        }
+    const teacher = facultyData.teachers.find((t: any) => t.id === teacherId);
+    if (teacher) {
+      if (!teacher.unitsTeached) {
+        teacher.unitsTeached = [];
       }
-    }
-    
-    // Update unit code for existing teacher if code changed but teacher didn't
-    if (oldUnitCode !== newUnitCode && oldTeacherId === newTeacherId && oldTeacherId) {
-      const teacher = facultyData.teachers.find((t: any) => t.id === oldTeacherId);
-      if (teacher && teacher.unitsTeached) {
-        const unitIndex = teacher.unitsTeached.indexOf(oldUnitCode);
-        if (unitIndex !== -1) {
-          teacher.unitsTeached[unitIndex] = newUnitCode;
-          hasChanges = true;
-          console.log(`Updated unit code from ${oldUnitCode} to ${newUnitCode} for teacher ${teacher.firstName} ${teacher.lastName}`);
-        }
+      if (!teacher.unitsTeached.includes(unitCode)) {
+        teacher.unitsTeached.push(unitCode);
+        await writeFile(facultyPath, JSON.stringify(facultyData, null, 2));
+        console.log(`Added unit ${unitCode} to teacher ${teacher.firstName} ${teacher.lastName}`);
       }
-    }
-    
-    // Add unit to new teacher if different
-    if (newTeacherId && newTeacherId !== oldTeacherId) {
-      const newTeacher = facultyData.teachers.find((t: any) => t.id === newTeacherId);
-      if (newTeacher) {
-        if (!newTeacher.unitsTeached) {
-          newTeacher.unitsTeached = [];
-        }
-        if (!newTeacher.unitsTeached.includes(newUnitCode)) {
-          newTeacher.unitsTeached.push(newUnitCode);
-          hasChanges = true;
-          console.log(`Added unit ${newUnitCode} to teacher ${newTeacher.firstName} ${newTeacher.lastName}`);
-        }
-      }
-    }
-    
-    // Write changes if any were made
-    if (hasChanges) {
-      await writeFile(facultyPath, JSON.stringify(facultyData, null, 2));
     }
   } catch (error) {
-    throw new Error(`Failed to update teacher assignments: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
-// Helper function to remove unit from all teachers
-async function removeUnitFromAllTeachers(unitCode: string): Promise<void> {
-  const facultyPath = path.join(process.cwd(), 'data/faculty.json');
-  
-  try {
-    const facultyContent = await readFile(facultyPath, 'utf8');
-    const facultyData = JSON.parse(facultyContent);
-    
-    let removedCount = 0;
-    
-    facultyData.teachers.forEach((teacher: any) => {
-      if (teacher.unitsTeached && Array.isArray(teacher.unitsTeached)) {
-        const initialLength = teacher.unitsTeached.length;
-        teacher.unitsTeached = teacher.unitsTeached.filter((code: string) => code !== unitCode);
-        
-        if (teacher.unitsTeached.length < initialLength) {
-          removedCount++;
-          console.log(`Removed unit ${unitCode} from teacher ${teacher.firstName} ${teacher.lastName}`);
-        }
-      }
-    });
-    
-    if (removedCount > 0) {
-      await writeFile(facultyPath, JSON.stringify(facultyData, null, 2));
-      console.log(`Unit ${unitCode} removed from ${removedCount} teacher(s)`);
-    }
-  } catch (error) {
-    throw new Error(`Failed to remove unit from teachers: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(`Failed to assign teacher: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

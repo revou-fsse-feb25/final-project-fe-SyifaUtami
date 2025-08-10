@@ -6,13 +6,14 @@ import { faPlus, faTimes, faUsers } from '@fortawesome/free-solid-svg-icons';
 import CoordinatorUnitCard from '../../components/coorUnitCard';
 import CourseUnitModals from '../../components/courseUnitModals';
 import StudentProgressComponent from '../../components/studentProgress';
-import { Course, Unit, StudentProgress, Assignment } from '../../../types';
+import { Course, Unit, StudentProgress, Assignment, Teacher } from '../../../types';
 
 interface ManageUnitsData {
   courses: Course[];
   units: Unit[];
   allStudentProgress: StudentProgress[];
   assignments: Assignment[];
+  teachers: Teacher[]; // Add teachers
 }
 
 type ModalType = 'addCourse' | 'addUnit' | 'deleteCourse' | 'deleteUnit' | 'none';
@@ -20,6 +21,7 @@ type ModalType = 'addCourse' | 'addUnit' | 'deleteCourse' | 'deleteUnit' | 'none
 export default function ManageUnitsPage() {
   const [data, setData] = useState<ManageUnitsData | null>(null);
   const [coordinators, setCoordinators] = useState<any[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]); // Add teachers state
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -63,11 +65,13 @@ export default function ManageUnitsPage() {
           courses: academicData.courses || [],
           units: academicData.units || [],
           allStudentProgress: studentsData.progress || [],
-          assignments: academicData.assignments || []
+          assignments: academicData.assignments || [],
+          teachers: academicData.teachers || [] // Add teachers to data
         });
 
-        // Set coordinators for the dropdown
+        // Set coordinators and teachers for the dropdowns
         setCoordinators(academicData.faculty || []);
+        setTeachers(academicData.teachers || []); // Set teachers state
 
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');
@@ -371,6 +375,7 @@ export default function ManageUnitsPage() {
         modalType={modalType}
         onClose={() => setModalType('none')}
         coordinators={coordinators}
+        teachers={teachers} // Pass teachers prop
         onCourseAdded={handleCourseAdded}
         courseToDelete={courseToDelete}
         onCourseDeleted={handleCourseDeleted}
