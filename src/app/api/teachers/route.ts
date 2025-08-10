@@ -77,3 +77,58 @@ export async function POST(request: NextRequest) {
     }, { status: 500 });
   }
 }
+
+// PUT - Update teacher (including unit assignments)
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    
+    console.log('Updating teacher:', body);
+    
+    // Validate request body
+    if (!body.teacherId) {
+      return NextResponse.json(
+        { error: 'teacherId is required' }, 
+        { status: 400 }
+      );
+    }
+    
+    // Read current faculty data
+    const dataPath = path.join(process.cwd(), 'data/faculty.json');
+    const currentData = await readFile(dataPath, 'utf8');
+    const facultyData = JSON.parse(currentData);
+    
+    // Find teacher to update
+    const teacherIndex = facultyData.teachers.findIndex((t: any) => t.id === body.teacherId);
+    
+    if (teacherIndex === -1) {
+      return NextResponse.json({ error: 'Teacher not found' }, { status: 404 });
+    }
+    
+    // Update teacher data
+    const updatedTeacher = {
+      ...facultyData.teachers[teacherIndex],
+      ...body,
+      id: facultyData.teachers[teacherIndex].id // Preserve original ID
+    };
+    
+    facultyData.teachers[teacherIndex] = updatedTeacher;
+    
+    // Write updated data back to file
+    await writeFile(dataPath, JSON.stringify(facultyData, null, 2));
+    
+    console.log('Teacher updated successfully:', updatedTeacher);
+    
+    return NextResponse.json({
+      message: 'Teacher updated successfully',
+      teacher: updatedTeacher
+    });
+    
+  } catch (error) {
+    console.error('Teacher PUT error:', error);
+    return NextResponse.json({ 
+      error: 'Failed to update teacher',
+      details: error instanceof Error ? error.message : 'Unknown error occurred'
+    }, { status: 500 });
+  }
+}

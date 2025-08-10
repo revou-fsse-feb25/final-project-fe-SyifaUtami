@@ -45,7 +45,7 @@ const CoordinatorUnitCard: FC<CoordinatorUnitCardProps> = ({
   className = '' 
 }) => {
   return (
-    <Link href={`/coordinator/units/${unit.code}/edit`}>
+    <Link href={`/coordinator/manage-units/edit-units/${unit.code}`}>
       <div className={`lms-card hover:shadow-lg transition-all duration-200 cursor-pointer ${className}`}>
         {/* Color Header */}
         <div 

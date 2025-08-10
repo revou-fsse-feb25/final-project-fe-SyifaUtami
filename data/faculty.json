@@ -22,7 +22,8 @@
       "lastName": "David",
       "email": "damiano.david@imajine.ac.id",
       "unitsTeached": [
-        "BM001"
+        "BM001",
+        "TC001"
       ]
     },
     {
@@ -40,7 +41,8 @@
       "lastName": "Raggi",
       "email": "thomas.raggi@imajine.ac.id",
       "unitsTeached": [
-        "BA001"
+        "BA001",
+        "TC0"
       ]
     },
     {

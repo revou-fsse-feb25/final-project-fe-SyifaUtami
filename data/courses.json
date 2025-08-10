@@ -20,7 +20,8 @@
       "code": "TC",
       "name": "TCCC",
       "units": [
-        "TC001"
+        "TC001",
+        "TC0"
       ]
     }
   ],
@@ -29,7 +30,7 @@
       "code": "BM001",
       "name": "Employability and Careers",
       "courseCode": "BM",
-      "description": "Imajine University's Bachelor of Business gives you the skills and experience needed to succeed in the business world. You will solve practical business challenges, explore innovative and emerging business trends, and prepare for the nuances of international business relationships. There are opportunities to secure a sought-after work placement with our industry partners, and to gain a global perspective of business on an international study tour.",
+      "description": "Imajine University's Bachelor of Business gives you the skills and experience needed to succeed in the business world. You will solve practical business challenges, explore innovative and emerging business trends, and prepare for the nuances of international business relationships. There are opportunities to secure a sought-after work placement with our industry partners, and to gain a global perspective of business on an international study tour.test",
       "currentWeek": 3
     },
     {
@@ -58,6 +59,13 @@
       "name": "tctst",
       "courseCode": "TC",
       "description": "22222",
+      "currentWeek": 1
+    },
+    {
+      "code": "TC0",
+      "name": "iii",
+      "courseCode": "TC",
+      "description": "0",
       "currentWeek": 1
     }
   ]
