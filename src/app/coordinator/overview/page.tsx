@@ -131,7 +131,6 @@ export default function CoordinatorOverview() {
           </div>
         )}
       </div>
-
       {/* Refresh Button */}
       <div className="mt-8 flex justify-end">
         <button 
@@ -141,6 +140,7 @@ export default function CoordinatorOverview() {
         >
           {isLoading ? 'Refreshing...' : 'Refresh Data'}
         </button>
+        
       </div>
     </div>
   );

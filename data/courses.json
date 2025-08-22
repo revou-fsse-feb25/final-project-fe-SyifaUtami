@@ -5,7 +5,8 @@
       "name": "Business Management",
       "units": [
         "BM001",
-        "BM002"
+        "BM002",
+        "BM012"
       ]
     },
     {
@@ -15,6 +16,11 @@
         "BA001",
         "BA002"
       ]
+    },
+    {
+      "code": "CS01",
+      "name": "Computer Science",
+      "units": []
     }
   ],
   "units": [
@@ -22,7 +28,7 @@
       "code": "BM001",
       "name": "Employability and Careers",
       "courseCode": "BM",
-      "description": "Imajine University's Bachelor of Business gives you the skills and experience needed to succeed in the business world. You will solve practical business challenges, explore innovative and emerging business trends, and prepare for the nuances of international business relationships. There are opportunities to secure a sought-after work placement with our industry partners, and to gain a global perspective of business on an international study tour.test2",
+      "description": "Imajine University's Bachelor of Business gives you the skills and experience needed to succeed in the business world. You will solve practical business challenges, explore innovative and emerging business trends, and prepare for the nuances of international business relationships. There are opportunities to secure a sought-after work placement with our industry partners, and to gain a global perspective of business on an international study tour.",
       "currentWeek": 3
     },
     {
@@ -45,6 +51,13 @@
       "courseCode": "BA",
       "description": "Work on real-world projects, practise with the analysis tools used by professionals and get industry experience translating insights into impact. This unit provides hands-on training with industry-standard analytics software and methodologies.",
       "currentWeek": 3
+    },
+    {
+      "code": "BM012",
+      "name": "test",
+      "courseCode": "BM",
+      "description": "description",
+      "currentWeek": 1
     }
   ]
 }

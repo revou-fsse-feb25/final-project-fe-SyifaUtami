@@ -116,3 +116,8 @@ User transaction account
 4. seeding data
 5. User service + auth layers (generate jwt)
 6. Guard - generate token
+
+
+NOTE: 
+Delete teacher not working
+di units overview, assignment list malah ke submission page yg udah closed

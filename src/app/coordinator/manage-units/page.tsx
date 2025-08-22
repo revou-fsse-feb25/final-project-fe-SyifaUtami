@@ -225,7 +225,7 @@ export default function ManageUnitsPage() {
         {/* Success Message */}
         {successMessage && (
           <div className="mt-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg">
-            ✅ {successMessage}
+            {successMessage}
           </div>
         )}
       </div>

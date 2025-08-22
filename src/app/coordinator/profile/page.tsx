@@ -114,13 +114,6 @@ const CoordinatorProfile: FC = () => {
           <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--primary-dark)' }}>
             Coordinator Profile
           </h1>
-          {/* Debug button - remove in production */}
-          <button 
-            onClick={handleManualRefresh}
-            className="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
-          >
-            🔄 Refresh Data
-          </button>
         </div>
 
         {/* Personal Information Card */}

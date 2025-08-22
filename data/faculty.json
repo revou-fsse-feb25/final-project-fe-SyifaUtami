@@ -10,7 +10,8 @@
       "accessLevel": "full",
       "courseManaged": [
         "BM",
-        "BA"
+        "BA",
+        "CS01"
       ]
     }
   ],
@@ -30,7 +31,8 @@
       "lastName": "De Angelis",
       "email": "victoria.deangelis@imajine.ac.id",
       "unitsTeached": [
-        "BM002"
+        "BM002",
+        "BM012"
       ]
     },
     {
@@ -47,6 +49,15 @@
       "firstName": "Ethan",
       "lastName": "Torchio",
       "email": "ethan.torchio@imajine.ac.id",
+      "unitsTeached": [
+        "BA002"
+      ]
+    },
+    {
+      "id": "t182",
+      "firstName": "Fazila",
+      "lastName": "Insani",
+      "email": "ilainsani@imajine.uni",
       "unitsTeached": [
         "BA002"
       ]

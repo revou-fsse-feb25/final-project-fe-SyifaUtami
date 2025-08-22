@@ -183,7 +183,7 @@ export default function EditUnitsPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading unit information...</p>
         </div>
       </div>
@@ -237,7 +237,7 @@ export default function EditUnitsPage() {
               Edit <strong>{unit.name} ({unit.code})</strong> in <strong>{course.name} ({course.code})</strong>
             </p>
             {currentTeacher && (
-              <p className="text-sm text-blue-600 mt-1">
+              <p className="text-sm text-[var(--primary-red)] mt-1">
                 <FontAwesomeIcon icon={faUser} className="mr-1" />
                 Currently taught by: {currentTeacher.firstName} {currentTeacher.lastName}
               </p>
@@ -256,7 +256,7 @@ export default function EditUnitsPage() {
         {/* Success Message */}
         {successMessage && (
           <div className="mt-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg">
-            ✅ {successMessage}
+            {successMessage}
           </div>
         )}
       </div>
