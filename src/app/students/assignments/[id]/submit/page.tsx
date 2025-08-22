@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../../../context/authContext';
 import { Assignment } from '../../../../../types';
+import { apiClient } from '@/src/lib/api';
 
 export default function SubmitAssignmentPage() {
   const params = useParams();
@@ -84,7 +85,6 @@ export default function SubmitAssignmentPage() {
       submissionId: existingSubmission?.submissionId || generateSubmissionId(user.id, assignment!.id),
       studentId: user.id,
       assignmentId: assignment!.id,
-      status: assignment!.status,
       submissionStatus: submissionStatus,
       submissionName: selectedFile ? selectedFile.name : existingSubmission?.submissionName,
       submittedAt: submissionStatus === 'submitted' ? now : (existingSubmission?.submittedAt || null),
@@ -105,17 +105,10 @@ export default function SubmitAssignmentPage() {
     try {
       const submissionData = createSubmissionData('submitted');
       
-      const response = await fetch('/api/submissions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(submissionData),
-      });
+      // Use API client instead of direct fetch
+      const result = await apiClient.createSubmission(submissionData);
       
-      const result = await response.json();
-      
-      if (result.success) {
+      if (result) {
         setSuccessMessage('Assignment submitted successfully!');
         setIsSuccess(true);
         // Refresh the existing submission data
@@ -127,7 +120,7 @@ export default function SubmitAssignmentPage() {
           }
         }
       } else {
-        throw new Error(result.message || 'Failed to submit assignment');
+        throw new Error('Failed to submit assignment');
       }
     } catch (error) {
       setSuccessMessage(error instanceof Error ? error.message : 'Submission failed. Please try again.');
@@ -148,17 +141,10 @@ export default function SubmitAssignmentPage() {
     try {
       const submissionData = createSubmissionData('draft');
       
-      const response = await fetch('/api/submissions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(submissionData),
-      });
+      // Use API client instead of direct fetch
+      const result = await apiClient.createSubmission(submissionData);
       
-      const result = await response.json();
-      
-      if (result.success) {
+      if (result) {
         setSuccessMessage('Draft saved successfully!');
         setIsSuccess(true);
         // Refresh the existing submission data
@@ -170,7 +156,7 @@ export default function SubmitAssignmentPage() {
           }
         }
       } else {
-        throw new Error(result.message || 'Failed to save draft');
+        throw new Error('Failed to save draft');
       }
     } catch (error) {
       setSuccessMessage(error instanceof Error ? error.message : 'Failed to save draft. Please try again.');
@@ -227,7 +213,7 @@ export default function SubmitAssignmentPage() {
           Submit Assignment
         </h1>
         <p className="text-lg text-gray-600">
-          {assignment.id}: {assignment.name}
+          {assignment.id}: {assignment.title}
         </p>
       </div>
 
@@ -241,7 +227,7 @@ export default function SubmitAssignmentPage() {
             <span className="font-medium">Unit:</span> {assignment.unitCode}
           </div>
           <div>
-            <span className="font-medium">Deadline:</span> {formatDate(assignment.deadline)}
+            <span className="font-medium">Deadline:</span> {formatDate(assignment.dueDate)}
           </div>
         </div>
       </div>
@@ -302,6 +288,15 @@ export default function SubmitAssignmentPage() {
             </div>
           )}
 
+          {/* Success Message */}
+          {successMessage && (
+            <div className={`p-4 rounded ${isSuccess ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              <p className={`text-sm font-medium ${isSuccess ? 'text-green-800' : 'text-red-800'}`}>
+                {successMessage}
+              </p>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 pt-4">
             <button
@@ -340,49 +335,21 @@ export default function SubmitAssignmentPage() {
                   Saving Draft...
                 </span>
               ) : (
-                isDraftState ? 'Update Draft' : 'Save as Draft'
+                'Save as Draft'
               )}
             </button>
-
-            <button
-              onClick={() => router.back()}
-              className="lms-button-primary bg-gray-600 hover:bg-gray-700"
-              disabled={isSubmitting || isDrafting}
-            >
-              Cancel
-            </button>
           </div>
 
-          {/* Help Text */}
-          <div className="text-xs text-gray-500 pt-2 space-y-1">
-            <p>• <strong>Submit:</strong> Final submission - cannot be changed after deadline</p>
-            <p>• <strong>Save as Draft:</strong> Save your work - you can continue editing later</p>
-            {existingSubmission?.submissionName && (
-              <p>• You can submit with the current file or upload a new one to replace it</p>
-            )}
+          {/* Instructions */}
+          <div className="text-sm text-gray-600 pt-4 border-t">
+            <p className="mb-2"><strong>Instructions:</strong></p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>Select a PDF, DOC, or DOCX file to submit</li>
+              <li>Use "Save as Draft" to save your work without submitting</li>
+              <li>Use "Submit Assignment" when you're ready to submit for grading</li>
+              <li>You can replace your draft or submission by selecting a new file</li>
+            </ul>
           </div>
-
-          {/* Success/Error Message */}
-          {successMessage && (
-            <div className={`mt-6 p-4 rounded-lg border ${
-              isSuccess 
-                ? 'bg-green-50 border-green-200 text-green-800' 
-                : 'bg-red-50 border-red-200 text-red-800'
-            }`}>
-              <div className="flex items-center space-x-2">
-                {isSuccess ? (
-                  <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                )}
-                <span className="font-medium">{successMessage}</span>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

@@ -1,3 +1,4 @@
+// src/app/components/assignmentCard.tsx
 'use client';
 import { Assignment, StudentSubmission } from '../../types';
 import { useRouter } from 'next/navigation';
@@ -7,16 +8,18 @@ interface AssignmentCardProps {
   submission?: StudentSubmission;
   onClick?: () => void;
   showUnit?: boolean;
+  userType?: string; 
 }
 
 export default function AssignmentCard({ 
   assignment, 
   submission, 
   onClick,
-  showUnit = false 
+  showUnit = false,
+  userType 
 }: AssignmentCardProps) {
   const router = useRouter();
-  const isOpen = assignment.status === 'open';
+  const isOpen = assignment.status === 'OPEN';
   
   const handleCardClick = () => {
     if (onClick) {
@@ -24,14 +27,24 @@ export default function AssignmentCard({
       return;
     }
 
-    // Handle navigation based on assignment status
-    if (isOpen) {
-      router.push(`/students/assignments/${assignment.id}`);
-    } else {
+    // Handle navigation based on assignment status and user type
+    if (userType === 'coordinator') {
+      // Coordinator navigation logic 
       if (submission?.submissionId) {
-        router.push(`/students/assignments/${submission.submissionId}`);
+        router.push(`/coordinator/submissions/${submission.submissionId}`);
       } else {
+        router.push(`/coordinator/assignments/${assignment.id}`);
+      }
+    } else {
+      // Student navigation
+      if (isOpen) {
         router.push(`/students/assignments/${assignment.id}`);
+      } else {
+        if (submission?.submissionId) {
+          router.push(`/students/assignments/${submission.submissionId}`);
+        } else {
+          router.push(`/students/assignments/${assignment.id}`);
+        }
       }
     }
   };
@@ -50,18 +63,21 @@ export default function AssignmentCard({
     }
     
     switch (submission.submissionStatus) {
-      case 'empty':
+      case 'EMPTY':
         return 'Not started';
-      case 'draft':
+      case 'DRAFT':
         return 'Draft saved';
-      case 'submitted':
+      case 'SUBMITTED':
         return 'Submitted';
-      case 'unsubmitted':
+      case 'UNSUBMITTED':
         return 'Not submitted';
       default:
         return 'Unknown status';
     }
   };
+
+  const assignmentName = assignment.title || 'Untitled Assignment';
+  const deadline = assignment.dueDate;
 
   return (
     <div 
@@ -80,11 +96,11 @@ export default function AssignmentCard({
     >
       <div className="flex-1">
         <h4 className="text-lg font-medium text-gray-900 mb-2">
-          {assignment.name}
+          {assignmentName}
         </h4>
         <div className="space-y-1">
           <p className="text-base text-gray-600">
-            Due: {new Date(assignment.deadline).toLocaleDateString()}
+            Due: {deadline ? new Date(deadline).toLocaleDateString() : 'No deadline'}
           </p>
           {showUnit && (
             <p className="text-sm text-gray-500">

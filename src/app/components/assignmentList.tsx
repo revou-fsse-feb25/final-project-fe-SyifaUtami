@@ -1,3 +1,4 @@
+// src/app/components/assignmentList.tsx
 'use client';
 import { Assignment, StudentSubmission } from '../../types';
 import AssignmentCard from './assignmentCard';
@@ -14,6 +15,7 @@ interface AssignmentListProps {
   onAssignmentClick?: (item: AssignmentWithSubmission) => void;
   showUnit?: boolean;
   className?: string;
+  userType?: string; // Add userType prop to fix TypeScript error
 }
 
 export default function AssignmentList({
@@ -22,7 +24,8 @@ export default function AssignmentList({
   emptyMessage = "No assignments found.",
   onAssignmentClick,
   showUnit = false,
-  className = ""
+  className = "",
+  userType // Accept userType prop (even if not used for now)
 }: AssignmentListProps) {
   
   return (
@@ -41,6 +44,7 @@ export default function AssignmentList({
               assignment={item.assignment}
               submission={item.submission}
               showUnit={showUnit}
+              userType={userType}
             />
           ))}
         </div>

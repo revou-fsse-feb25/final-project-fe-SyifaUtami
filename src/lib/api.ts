@@ -6,12 +6,15 @@ import type {
   UnitMetrics, 
   DashboardMetrics,
   Assignment,
-  AssignmentWithSubmission 
+  AssignmentWithSubmission,
+  StudentSubmission,
+  StudentProgress,
+  Unit,
+  Teacher
 } from '../types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-// Based on your backend's actual response structure
 interface LoginResponse {
   success: boolean;
   user: any;
@@ -169,7 +172,7 @@ class ApiClient {
     if (params?.unitCode) searchParams.append('unitCode', params.unitCode);
     
     const queryString = searchParams.toString();
-    return this.request<PaginatedResponse>(`/teachers${queryString ? `?${queryString}` : ''}`);
+    return this.request<PaginatedResponse<Teacher>>(`/teachers${queryString ? `?${queryString}` : ''}`);
   }
 
   async getTeacherStats() {
@@ -229,12 +232,12 @@ class ApiClient {
     return this.request(`/units/stats${queryString}`);
   }
 
-  async getUnitsByCourse(courseCode: string) {
-    return this.request(`/units/course/${courseCode}`);
+  async getUnitsByCourse(courseCode: string): Promise<Unit[]> {
+    return this.request<Unit[]>(`/units/course/${courseCode}`);
   }
 
-  async getUnit(code: string) {
-    return this.request(`/units/${code}`);
+  async getUnit(code: string): Promise<Unit> {
+    return this.request<Unit>(`/units/${code}`);
   }
 
   async getUnitWithProgress(code: string) {
@@ -273,40 +276,51 @@ class ApiClient {
     if (params?.includeSubmissions) searchParams.append('includeSubmissions', 'true');
     
     const queryString = searchParams.toString();
-    return this.request(`/assignments${queryString ? `?${queryString}` : ''}`);
+    return this.request<AssignmentWithSubmission[]>(`/assignments${queryString ? `?${queryString}` : ''}`);
   }
 
   async getAssignment(id: string, includeSubmissions?: boolean): Promise<Assignment> {
     const queryString = includeSubmissions ? '?includeSubmissions=true' : '';
-    return this.request(`/assignments/${id}${queryString}`);
+    return this.request<Assignment>(`/assignments/${id}${queryString}`);
   }
 
-  // Submissions methods
-  async getSubmission(submissionId: string) {
-    return this.request(`/submissions/${submissionId}`);
+  // Submissions methods - WITH PROPER TYPES
+  async getSubmission(submissionId: string): Promise<StudentSubmission> {
+    return this.request<StudentSubmission>(`/submissions/${submissionId}`);
   }
 
-  async updateSubmission(submissionId: string, data: any) {
-    return this.request(`/submissions/${submissionId}`, {
+  async getStudentSubmissions(studentId: string): Promise<StudentSubmission[]> {
+    return this.request<StudentSubmission[]>(`/submissions/student/${studentId}`);
+  }
+
+  async updateSubmission(submissionId: string, data: any): Promise<StudentSubmission> {
+    return this.request<StudentSubmission>(`/submissions/${submissionId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   }
 
-  async gradeSubmission(submissionId: string, gradeData: { grade: number; comment?: string }) {
-    return this.request(`/submissions/${submissionId}/grade`, {
+  async gradeSubmission(submissionId: string, gradeData: { grade: number; comment?: string }): Promise<StudentSubmission> {
+    return this.request<StudentSubmission>(`/submissions/${submissionId}/grade`, {
       method: 'PUT',
       body: JSON.stringify(gradeData),
     });
   }
 
-  // Student Progress methods
-  async getStudentProgress(studentId: string) {
-    return this.request(`/student-progress/student/${studentId}`);
+  async createSubmission(submissionData: any): Promise<StudentSubmission> {
+    return this.request<StudentSubmission>('/submissions', {
+      method: 'POST',
+      body: JSON.stringify(submissionData),
+    });
   }
 
-  async getStudentUnitProgress(studentId: string, unitCode: string) {
-    return this.request(`/student-progress/student/${studentId}/unit/${unitCode}`);
+  // Student Progress methods - WITH PROPER TYPES
+  async getStudentProgress(studentId: string): Promise<StudentProgress[]> {
+    return this.request<StudentProgress[]>(`/student-progress/student/${studentId}`);
+  }
+
+  async getStudentUnitProgress(studentId: string, unitCode: string): Promise<StudentProgress> {
+    return this.request<StudentProgress>(`/student-progress/student/${studentId}/unit/${unitCode}`);
   }
 
   async getUnitProgressSummary(unitCode: string) {
@@ -314,18 +328,18 @@ class ApiClient {
   }
 
   async getProgressPercentage(studentId: string, unitCode: string): Promise<{ percentage: number }> {
-    return this.request(`/student-progress/student/${studentId}/unit/${unitCode}/percentage`);
+    return this.request<{ percentage: number }>(`/student-progress/student/${studentId}/unit/${unitCode}/percentage`);
   }
 
-  async createProgress(progressData: any) {
-    return this.request('/student-progress', {
+  async createProgress(progressData: any): Promise<StudentProgress> {
+    return this.request<StudentProgress>('/student-progress', {
       method: 'POST',
       body: JSON.stringify(progressData),
     });
   }
 
-  async updateStudentProgress(studentId: string, unitCode: string, progressData: any) {
-    return this.request(`/student-progress/student/${studentId}/unit/${unitCode}`, {
+  async updateStudentProgress(studentId: string, unitCode: string, progressData: any): Promise<StudentProgress> {
+    return this.request<StudentProgress>(`/student-progress/student/${studentId}/unit/${unitCode}`, {
       method: 'PUT',
       body: JSON.stringify(progressData),
     });
@@ -339,21 +353,21 @@ class ApiClient {
 
   // Analytics methods
   async getAnalyticsOverview(): Promise<DashboardMetrics> {
-    return this.request('/analytics/overview');
+    return this.request<DashboardMetrics>('/analytics/overview');
   }
 
   async getCourseAnalytics(courseCode: string, period?: 'week' | 'month' | 'quarter'): Promise<CourseMetrics> {
     const queryString = period ? `?period=${period}` : '';
-    return this.request(`/analytics/course/${courseCode}${queryString}`);
+    return this.request<CourseMetrics>(`/analytics/course/${courseCode}${queryString}`);
   }
 
   async getUnitAnalytics(unitCode: string, period?: 'week' | 'month' | 'quarter'): Promise<UnitMetrics> {
     const queryString = period ? `?period=${period}` : '';
-    return this.request(`/analytics/unit/${unitCode}${queryString}`);
+    return this.request<UnitMetrics>(`/analytics/unit/${unitCode}${queryString}`);
   }
 
   async getStudentAnalytics(studentId: string): Promise<StudentAnalytics> {
-    return this.request(`/analytics/student/${studentId}`);
+    return this.request<StudentAnalytics>(`/analytics/student/${studentId}`);
   }
 
   async getTrends(period?: 'week' | 'month' | 'quarter') {
@@ -361,9 +375,9 @@ class ApiClient {
     return this.request(`/analytics/trends${queryString}`);
   }
 
-  // Academic Data methods
+  // Academic Data methods - WITH PROPER TYPES
   async getAcademicData(): Promise<AcademicData> {
-    return this.request('/academic-data');
+    return this.request<AcademicData>('/academic-data');
   }
 }
 

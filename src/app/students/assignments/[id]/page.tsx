@@ -36,15 +36,17 @@ export default function AssignmentPage() {
           if (!response.ok) throw new Error('Failed to fetch submission');
           
           const data = await response.json();
-          setSubmission(data.submission);
-          setAssignment(data.assignment);
+          // Fix: Type the response data properly
+          setSubmission(data.submission as StudentSubmission | null);
+          setAssignment(data.assignment as Assignment | null);
         } else {
           // Fetch assignment data
           const response = await fetch(`/api/assignments/${id}`);
           if (!response.ok) throw new Error('Failed to fetch assignment');
           
           const data = await response.json();
-          setAssignment(data);
+          // Fix: Type the response data properly
+          setAssignment(data as Assignment | null);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch data');
@@ -99,7 +101,7 @@ export default function AssignmentPage() {
       {/* Page Header */}
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-2" style={{ color: 'var(--text-black)' }}>
-          {assignment.id}: {assignment.name}
+          {assignment.id}: {assignment.title}
         </h1>
         <p className="text-lg text-gray-600">
           {isSubmissionId ? 'Submission Details' : 'Assignment Details'}
@@ -115,7 +117,7 @@ export default function AssignmentPage() {
                 Name:
               </td>
               <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                {assignment.name}
+                {assignment.title}
               </td>
             </tr>
             
@@ -133,7 +135,7 @@ export default function AssignmentPage() {
                 Deadline:
               </td>
               <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                {formatDate(assignment.deadline)}
+                {formatDate(assignment.dueDate)}
               </td>
             </tr>
 
@@ -160,71 +162,74 @@ export default function AssignmentPage() {
                 
                 <tr className="border-b border-[var(--border-color)]">
                   <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
-                    Submission ID:
-                  </td>
-                  <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                    {submission.submissionId}
-                  </td>
-                </tr>
-                
-                <tr className="border-b border-[var(--border-color)]">
-                  <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
                     Grade:
                   </td>
                   <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                    {submission.grade !== null ? submission.grade : 'Not graded yet'}
+                    {submission.grade !== null && submission.grade !== undefined ? 
+                      `${submission.grade}/100` : 'Not graded yet'}
                   </td>
                 </tr>
-                
-                <tr className="border-b border-[var(--border-color)]">
-                  <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
-                    Comment:
-                  </td>
-                  <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                    {submission.comment || 'No comment provided'}
-                  </td>
-                </tr>
-                
-                <tr>
-                  <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
-                    Graded by:
-                  </td>
-                  <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                    {submission.gradedBy ? getTeacherName(submission.gradedBy) : 'Not graded yet'}
-                  </td>
-                </tr>
-              </>
-            )}
 
-            {/* Assignment-specific fields (Submit button for open assignments) */}
-            {!isSubmissionId && (
-              <tr>
-                <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
-                  Submit:
-                </td>
-                <td className="py-4 px-6 bg-white">
-                  <button 
-                    onClick={handleSubmitClick}
-                    className="lms-button-secondary"
-                  >
-                    Submit Assignment
-                  </button>
-                </td>
-              </tr>
+                {submission.comment && (
+                  <tr className="border-b border-[var(--border-color)]">
+                    <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
+                      Comment:
+                    </td>
+                    <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
+                      {submission.comment}
+                    </td>
+                  </tr>
+                )}
+              </>
             )}
           </tbody>
         </table>
       </div>
 
-      {/* Back Button */}
-      <div className="mt-8">
-        <button 
-          onClick={() => router.back()}
-          className="lms-button-primary"
-        >
-          ← Back to Assignments
-        </button>
-      </div>
+      {/* Description */}
+      {assignment.description && (
+        <div className="lms-card mt-6">
+          <h3 className="text-xl font-semibold mb-4" style={{ color: 'var(--text-black)' }}>
+            Description
+          </h3>
+          <div className="prose max-w-none">
+            <p style={{ color: 'var(--text-black)' }}>
+              {assignment.description}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Action buttons */}
+      {!isSubmissionId && (
+        <div className="mt-8 flex gap-4">
+          <button
+            onClick={handleSubmitClick}
+            className="lms-button-primary"
+          >
+            Submit Assignment
+          </button>
+          
+          <button
+            onClick={() => router.back()}
+            className="lms-button-secondary"
+          >
+            ← Back
+          </button>
+        </div>
+      )}
+
+      {/* Submission specific actions */}
+      {isSubmissionId && (
+        <div className="mt-8 flex gap-4">
+          <button
+            onClick={() => router.back()}
+            className="lms-button-primary"
+          >
+            ← Back to Assignments
+          </button>
+        </div>
+      )}
     </div>
   );
 }
