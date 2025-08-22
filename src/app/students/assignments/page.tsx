@@ -27,7 +27,7 @@ export default function StudentAssignmentsPage() {
       console.log('Fetching assignments for student:', user.id);
 
       // Use backend API to get assignments with submissions included
-      const [openData, closedData] = await Promise.all([
+      const [openResponse, closedResponse] = await Promise.all([
         apiClient.getAssignments({
           status: 'open',
           studentId: user.id,
@@ -40,17 +40,23 @@ export default function StudentAssignmentsPage() {
         })
       ]);
 
-      console.log('Open assignments data:', openData);
-      console.log('Closed assignments data:', closedData);
+      console.log('Open assignments response:', openResponse);
+      console.log('Closed assignments response:', closedResponse);
 
-      // Backend returns assignments with submissions already combined
-      const combined = [...(openData || []), ...(closedData || [])];
+      const openData = Array.isArray(openResponse) ? openResponse : (openResponse as any)?.data || [];
+      const closedData = Array.isArray(closedResponse) ? closedResponse : (closedResponse as any)?.data || [];
+
+      // Combine both arrays
+      const combined = [...openData, ...closedData];
+      
+      console.log('Combined assignments:', combined);
+      
       setAllAssignments(combined);
       setFilteredAssignments(combined);
 
     } catch (err) {
       console.error('Error fetching assignments:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch assignments');
+      setError(err instanceof Error ? err.message : 'Failed to load assignments');
     } finally {
       setIsLoading(false);
     }
@@ -60,73 +66,57 @@ export default function StudentAssignmentsPage() {
     fetchAssignments();
   }, [user]);
 
-  // Get unique unit codes for filter options
-  const studentUnits = useMemo(() => {
-    const units = Array.from(new Set(allAssignments.map(item => item.assignment.unitCode)));
-    return units.sort();
-  }, [allAssignments]);
-
-  // Create filter options
-  const filterOptions: FilterOption[] = useMemo(() => [
-    {
-      key: 'unitCode',
-      label: 'Unit',
-      options: studentUnits.map(unit => ({ value: unit, label: unit }))
-    },
+  const filterOptions: FilterOption[] = [
     {
       key: 'status',
       label: 'Status',
       options: [
-        { value: 'OPEN', label: 'Open' },
-        { value: 'CLOSED', label: 'Closed' }
-      ]
-    },
-    {
-      key: 'submissionStatus',
-      label: 'Submission Status',
-      options: [
-        { value: 'SUBMITTED', label: 'Submitted' },
-        { value: 'DRAFT', label: 'Draft' },
-        { value: 'EMPTY', label: 'Not Started' },
-        { value: 'UNSUBMITTED', label: 'Not Submitted' }
+        { value: 'all', label: 'All' },
+        { value: 'submitted', label: 'Submitted' },
+        { value: 'not_submitted', label: 'Not Submitted' },
+        { value: 'overdue', label: 'Overdue' },
+        { value: 'graded', label: 'Graded' }
       ]
     }
-  ], [studentUnits]);
+  ];
 
-  // Handle search
   const handleSearch = (query: string, filters: Record<string, string>) => {
-    let filtered = [...allAssignments];
+    let filtered = allAssignments;
 
-    // Apply text search filter
+    // Apply text search
     if (query.trim()) {
-      const searchLower = query.toLowerCase();
       filtered = filtered.filter(item =>
-        item.assignment.title.toLowerCase().includes(searchLower) ||
-        item.assignment.unitCode.toLowerCase().includes(searchLower)
+        item.assignment.title.toLowerCase().includes(query.toLowerCase()) ||
+        item.assignment.unitCode.toLowerCase().includes(query.toLowerCase())
       );
     }
 
-    // Apply unit filter
-    if (filters.unitCode) {
-      filtered = filtered.filter(item => item.assignment.unitCode === filters.unitCode);
-    }
-
-    // Apply status filter
-    if (filters.status) {
-      filtered = filtered.filter(item => item.assignment.status === filters.status);
-    }
-
-    // Apply submission status filter
-    if (filters.submissionStatus) {
-      filtered = filtered.filter(item => 
-        item.submission?.submissionStatus === filters.submissionStatus
-      );
+    // Apply filters
+    const filterValue = filters.status || 'all';
+    if (filterValue !== 'all') {
+      filtered = filtered.filter(item => {
+        const now = new Date();
+        const dueDate = new Date(item.assignment.dueDate);
+        const isOverdue = dueDate < now && item.assignment.status === 'OPEN';
+        
+        switch (filterValue) {
+          case 'submitted':
+            return item.submission?.submissionStatus === 'SUBMITTED';
+          case 'not_submitted':
+            return !item.submission || item.submission.submissionStatus === 'UNSUBMITTED' || item.submission.submissionStatus === 'EMPTY';
+          case 'overdue':
+            return isOverdue && (!item.submission || item.submission.submissionStatus === 'UNSUBMITTED' || item.submission.submissionStatus === 'EMPTY');
+          case 'graded':
+            return item.submission && item.submission.grade !== null;
+          default:
+            return true;
+        }
+      });
     }
 
     setFilteredAssignments(filtered);
   };
 
-  // Split and sort assignments from filtered results
   const upcomingAssignments = useMemo(() => {
     return filteredAssignments
       .filter(item => item.assignment.status === 'OPEN')
