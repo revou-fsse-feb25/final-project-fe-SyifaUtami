@@ -3,10 +3,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '../context/authContext';
+import { authManager } from '@/src/lib/auth';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [userType, setUserType] = useState<'student' | 'coordinator'>('student');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -19,80 +21,34 @@ export default function LoginPage() {
     setError('');
 
     try {
-      console.log('Attempting student login...');
-      // Try student login first
-      let response = await fetch('/api/auth', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          userType: 'student',
-        }),
+      console.log(`Attempting ${userType} login for:`, email);
+      
+      // Use the auth manager to login
+      const result = await authManager.login({
+        email,
+        password,
+        userType
       });
 
-      console.log('Student response status:', response.status);
-      console.log('Student response headers:', response.headers.get('content-type'));
-
-      // Check if response is JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Non-JSON response:', text);
-        throw new Error('Server returned non-JSON response');
-      }
-
-      let data = await response.json();
-      console.log('Student login result:', data);
-
-      // If student login fails, try faculty login
-      if (!data.success) {
-        console.log('Student login failed, trying faculty...');
-        response = await fetch('/api/auth', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email,
-            password,
-            userType: 'faculty',
-          }),
-        });
-
-        console.log('Faculty response status:', response.status);
-        
-        // Check if response is JSON
-        const facultyContentType = response.headers.get('content-type');
-        if (!facultyContentType || !facultyContentType.includes('application/json')) {
-          const text = await response.text();
-          console.error('Non-JSON response:', text);
-          throw new Error('Server returned non-JSON response');
-        }
-
-        data = await response.json();
-        console.log('Faculty login result:', data);
-      }
-
-      if (data.success) {
-        // Store in localStorage
-        localStorage.setItem('user', JSON.stringify(data.user));
-        localStorage.setItem('userType', data.userType);
+      if (result.success) {
+        // Get the authenticated user data
+        const userData = authManager.getUser();
+        const authenticatedUserType = authManager.getUserType();
         
         // Update auth context
-        setUser(data.user);
-        setAuthUserType(data.userType);
+        setUser(userData);
+        setAuthUserType(authenticatedUserType);
 
+        console.log('Login successful, redirecting...');
+        
         // Redirect based on user type
-        if (data.userType === 'coordinator') {
+        if (authenticatedUserType === 'coordinator') {
           router.push('/coordinator/overview');
         } else {
           router.push('/students/course');
         }
       } else {
-        setError('Invalid email or password');
+        setError(result.message || 'Invalid email or password');
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -100,6 +56,13 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Quick login function for demo credentials
+  const quickLogin = (demoEmail: string, demoPassword: string, demoUserType: 'student' | 'coordinator') => {
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    setUserType(demoUserType);
   };
 
   return (
@@ -128,6 +91,34 @@ export default function LoginPage() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="lms-card space-y-4">
 
+            {/* User Type Selection */}
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-black)' }}>
+                Login As
+              </label>
+              <div className="flex space-x-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    value="student"
+                    checked={userType === 'student'}
+                    onChange={(e) => setUserType(e.target.value as 'student')}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">Student</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    value="coordinator"
+                    checked={userType === 'coordinator'}
+                    onChange={(e) => setUserType(e.target.value as 'coordinator')}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">Coordinator</span>
+                </label>
+              </div>
+            </div>
 
             {/* Email Input */}
             <div>
@@ -179,14 +170,43 @@ export default function LoginPage() {
           </div>
         </form>
 
+        {/* Demo Credentials with Quick Login */}
+        <div className="mt-4">
+          <div className="text-center mb-3">
+            <p className="text-xs font-semibold text-gray-600">Demo Credentials (Click to auto-fill):</p>
+          </div>
+          
+          <div className="space-y-2">
+            {/* Student Credentials */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => quickLogin('TomHolland@imajine.ac.id', 'student123', 'student')}
+                className="text-xs p-2 rounded border border-gray-300 hover:bg-gray-50 text-left"
+              >
+                <div className="font-semibold text-blue-600">Student 1</div>
+                <div className="text-gray-500">TomHolland@imajine.ac.id</div>
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => quickLogin('FlorencePugh@imajine.ac.id', 'student123', 'student')}
+                className="text-xs p-2 rounded border border-gray-300 hover:bg-gray-50 text-left"
+              >
+                <div className="font-semibold text-blue-600">Student 2</div>
+                <div className="text-gray-500">FlorencePugh@imajine.ac.id</div>
+              </button>
+            </div>
 
-
-        {/* Demo Credentials */}
-        <div className="mt-4 text-center">
-          <div className="text-xs text-gray-500 space-y-1">
-            <p className="font-semibold">Demo Credentials:</p>
-            <p>Student: TomHolland@imajine.ac.id / student123 | FlorencePugh@imajine.ac.id / student123</p>
-            <p>Coordinator: coordinator@imajine.ac.id / coordinator123</p>
+            {/* Coordinator Credentials */}
+            <button
+              type="button"
+              onClick={() => quickLogin('coordinator@imajine.ac.id', 'coordinator123', 'coordinator')}
+              className="w-full text-xs p-2 rounded border border-gray-300 hover:bg-gray-50 text-left"
+            >
+              <div className="font-semibold text-green-600">Coordinator</div>
+              <div className="text-gray-500">coordinator@imajine.ac.id / coordinator123</div>
+            </button>
           </div>
         </div>
       </div>

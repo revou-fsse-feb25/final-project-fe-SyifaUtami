@@ -1,13 +1,39 @@
+// src/lib/api.ts
+import type { 
+  AcademicData, 
+  StudentAnalytics, 
+  CourseMetrics, 
+  UnitMetrics, 
+  DashboardMetrics,
+  Assignment,
+  AssignmentWithSubmission 
+} from '../types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-interface ApiResponse<T = any> {
+// Based on your backend's actual response structure
+interface LoginResponse {
   success: boolean;
+  user: any;
+  userType: 'student' | 'coordinator';
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+}
+
+interface PaginatedResponse<T = any> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+interface ApiResponse<T = any> {
+  success?: boolean;
   data?: T;
   error?: string;
-  total?: number;
-  page?: number;
-  totalPages?: number;
+  message?: string;
 }
 
 class ApiClient {
@@ -65,14 +91,8 @@ class ApiClient {
   }
 
   // Authentication methods
-  async login(credentials: { email: string; password: string; userType: string }) {
-    return this.request<{
-      access_token: string;
-      refresh_token: string;
-      expires_in: number;
-      user: any;
-      userType: string;
-    }>('/auth/login', {
+  async login(credentials: { email: string; password: string; userType: 'student' | 'coordinator' }) {
+    return this.request<LoginResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials),
     }, false);
@@ -98,7 +118,25 @@ class ApiClient {
   }
 
   // Students methods
-  async getStudents(params?: { page?: number; limit?: number; courseCode?: string; search?: string }) {
+  async getStudents(params?: { 
+    page?: number; 
+    limit?: number; 
+    courseCode?: string; 
+    search?: string;
+    includeData?: boolean;
+  }) {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.append('page', params.page.toString());
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.courseCode) searchParams.append('courseCode', params.courseCode);
+    if (params?.search) searchParams.append('search', params.search);
+    if (params?.includeData) searchParams.append('includeData', 'true');
+    
+    const queryString = searchParams.toString();
+    return this.request<PaginatedResponse>(`/students${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async getStudentsWithGrades(params?: { page?: number; limit?: number; courseCode?: string; search?: string }) {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.append('page', params.page.toString());
     if (params?.limit) searchParams.append('limit', params.limit.toString());
@@ -106,7 +144,12 @@ class ApiClient {
     if (params?.search) searchParams.append('search', params.search);
     
     const queryString = searchParams.toString();
-    return this.request<ApiResponse>(`/students${queryString ? `?${queryString}` : ''}`);
+    return this.request<PaginatedResponse>(`/students/with-grades${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async getStudentStats(courseCode?: string) {
+    const queryString = courseCode ? `?courseCode=${courseCode}` : '';
+    return this.request(`/students/stats${queryString}`);
   }
 
   async getStudent(id: string) {
@@ -118,8 +161,19 @@ class ApiClient {
   }
 
   // Teachers methods
-  async getTeachers() {
-    return this.request('/teachers');
+  async getTeachers(params?: { page?: number; limit?: number; search?: string; unitCode?: string }) {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.append('page', params.page.toString());
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.search) searchParams.append('search', params.search);
+    if (params?.unitCode) searchParams.append('unitCode', params.unitCode);
+    
+    const queryString = searchParams.toString();
+    return this.request<PaginatedResponse>(`/teachers${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async getTeacherStats() {
+    return this.request('/teachers/stats');
   }
 
   async getTeacher(id: string) {
@@ -154,7 +208,12 @@ class ApiClient {
   }
 
   // Units methods
-  async getUnits(params?: { page?: number; limit?: number; courseCode?: string; search?: string }) {
+  async getUnits(params?: { 
+    page?: number; 
+    limit?: number; 
+    courseCode?: string; 
+    search?: string;
+  }) {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.append('page', params.page.toString());
     if (params?.limit) searchParams.append('limit', params.limit.toString());
@@ -162,11 +221,24 @@ class ApiClient {
     if (params?.search) searchParams.append('search', params.search);
     
     const queryString = searchParams.toString();
-    return this.request<ApiResponse>(`/units${queryString ? `?${queryString}` : ''}`);
+    return this.request<PaginatedResponse>(`/units${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async getUnitStats(code?: string) {
+    const queryString = code ? `?code=${code}` : '';
+    return this.request(`/units/stats${queryString}`);
+  }
+
+  async getUnitsByCourse(courseCode: string) {
+    return this.request(`/units/course/${courseCode}`);
   }
 
   async getUnit(code: string) {
     return this.request(`/units/${code}`);
+  }
+
+  async getUnitWithProgress(code: string) {
+    return this.request(`/units/${code}/progress`);
   }
 
   async createUnit(unitData: any) {
@@ -191,9 +263,9 @@ class ApiClient {
   async getAssignments(params?: { 
     unitCode?: string; 
     studentId?: string; 
-    status?: string; 
-    includeSubmissions?: boolean 
-  }) {
+    status?: 'open' | 'closed'; 
+    includeSubmissions?: boolean;
+  }): Promise<AssignmentWithSubmission[]> {
     const searchParams = new URLSearchParams();
     if (params?.unitCode) searchParams.append('unitCode', params.unitCode);
     if (params?.studentId) searchParams.append('studentId', params.studentId);
@@ -201,11 +273,12 @@ class ApiClient {
     if (params?.includeSubmissions) searchParams.append('includeSubmissions', 'true');
     
     const queryString = searchParams.toString();
-    return this.request<ApiResponse>(`/assignments${queryString ? `?${queryString}` : ''}`);
+    return this.request(`/assignments${queryString ? `?${queryString}` : ''}`);
   }
 
-  async getAssignment(id: string) {
-    return this.request(`/assignments/${id}`);
+  async getAssignment(id: string, includeSubmissions?: boolean): Promise<Assignment> {
+    const queryString = includeSubmissions ? '?includeSubmissions=true' : '';
+    return this.request(`/assignments/${id}${queryString}`);
   }
 
   // Submissions methods
@@ -232,8 +305,23 @@ class ApiClient {
     return this.request(`/student-progress/student/${studentId}`);
   }
 
-  async getUnitProgress(unitCode: string) {
+  async getStudentUnitProgress(studentId: string, unitCode: string) {
+    return this.request(`/student-progress/student/${studentId}/unit/${unitCode}`);
+  }
+
+  async getUnitProgressSummary(unitCode: string) {
     return this.request(`/student-progress/unit/${unitCode}`);
+  }
+
+  async getProgressPercentage(studentId: string, unitCode: string): Promise<{ percentage: number }> {
+    return this.request(`/student-progress/student/${studentId}/unit/${unitCode}/percentage`);
+  }
+
+  async createProgress(progressData: any) {
+    return this.request('/student-progress', {
+      method: 'POST',
+      body: JSON.stringify(progressData),
+    });
   }
 
   async updateStudentProgress(studentId: string, unitCode: string, progressData: any) {
@@ -243,25 +331,38 @@ class ApiClient {
     });
   }
 
+  async initializeUnitProgress(unitCode: string) {
+    return this.request(`/student-progress/unit/${unitCode}/initialize`, {
+      method: 'POST',
+    });
+  }
+
   // Analytics methods
-  async getAnalyticsOverview() {
+  async getAnalyticsOverview(): Promise<DashboardMetrics> {
     return this.request('/analytics/overview');
   }
 
-  async getCourseAnalytics(courseCode: string) {
-    return this.request(`/analytics/course/${courseCode}`);
+  async getCourseAnalytics(courseCode: string, period?: 'week' | 'month' | 'quarter'): Promise<CourseMetrics> {
+    const queryString = period ? `?period=${period}` : '';
+    return this.request(`/analytics/course/${courseCode}${queryString}`);
   }
 
-  async getUnitAnalytics(unitCode: string) {
-    return this.request(`/analytics/unit/${unitCode}`);
+  async getUnitAnalytics(unitCode: string, period?: 'week' | 'month' | 'quarter'): Promise<UnitMetrics> {
+    const queryString = period ? `?period=${period}` : '';
+    return this.request(`/analytics/unit/${unitCode}${queryString}`);
   }
 
-  async getStudentAnalytics(studentId: string) {
+  async getStudentAnalytics(studentId: string): Promise<StudentAnalytics> {
     return this.request(`/analytics/student/${studentId}`);
   }
 
+  async getTrends(period?: 'week' | 'month' | 'quarter') {
+    const queryString = period ? `?period=${period}` : '';
+    return this.request(`/analytics/trends${queryString}`);
+  }
+
   // Academic Data methods
-  async getAcademicData() {
+  async getAcademicData(): Promise<AcademicData> {
     return this.request('/academic-data');
   }
 }
@@ -270,4 +371,4 @@ class ApiClient {
 export const apiClient = new ApiClient(API_BASE_URL);
 
 // Export types for use in components
-export type { ApiResponse };
+export type { LoginResponse, PaginatedResponse, ApiResponse };

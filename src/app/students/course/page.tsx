@@ -1,35 +1,58 @@
 'use client';
 import { FC, useState, useEffect } from 'react';
 import { useAuth } from '../../context/authContext';
-import { Course, Unit } from '../../../types';
+import { apiClient } from '../../../lib/api'
 import StudentUnitCard from '../../components/studentUnitCard';
 
-interface CoursesData {
-  courses: Course[];
-  units: Unit[];
+interface Course {
+  id: string;
+  code: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Unit {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  courseCode: string;
+  currentWeek: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 const CourseOverview: FC = () => {
   const { user } = useAuth();
-  const [data, setData] = useState<CoursesData | null>(null);
+  const [course, setCourse] = useState<Course | null>(null);
+  const [units, setUnits] = useState<Unit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch data from API
   useEffect(() => {
     const fetchData = async () => {
+      if (!user || !user.courseCode) {
+        setIsLoading(false);
+        return;
+      }
+
       try {
         setIsLoading(true);
         setError(null);
         
-        const response = await fetch('/api/academic-data');
-        if (!response.ok) throw new Error('Failed to fetch data');
+        // Use backend API instead of local files
+        const academicData = await apiClient.getAcademicData();
         
-        const academicData = await response.json();
-        setData({
-          courses: academicData.courses,
-          units: academicData.units
-        });
+        const foundCourse = academicData.courses.find((c: Course) => c.code === user.courseCode);
+        setCourse(foundCourse || null);
+        
+        if (foundCourse) {
+          const courseUnits = academicData.units.filter((unit: Unit) => 
+            unit.courseCode === foundCourse.code
+          );
+          setUnits(courseUnits);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load course data');
       } finally {
@@ -38,7 +61,7 @@ const CourseOverview: FC = () => {
     };
 
     fetchData();
-  }, []);
+  }, [user]);
 
   // Early return if no user
   if (!user || !user.courseCode) {
@@ -58,7 +81,7 @@ const CourseOverview: FC = () => {
     );
   }
 
-  if (error || !data) {
+  if (error || !course) {
     return (
       <div className="p-6">
         <p className="text-red-600">{error || 'Failed to load course data'}</p>
@@ -66,30 +89,16 @@ const CourseOverview: FC = () => {
     );
   }
 
-  // Find the student's course
-  const studentCourse = data.courses.find(course => course.code === user.courseCode);
-
-  if (!studentCourse) {
-    return (
-      <div className="p-6">
-        <p>Course not found.</p>
-      </div>
-    );
-  }
-
-  // Get units for this course
-  const courseUnits = data.units.filter(unit => unit.courseCode === studentCourse.code);
-
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Course Title */}
       <h1 className="text-4xl font-bold mb-8" style={{ color: 'var(--text-black)' }}>
-        {studentCourse.name}
+        {course.name}
       </h1>
 
       {/* Units Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {courseUnits.map((unit) => (
+        {units.map((unit) => (
           <StudentUnitCard key={unit.code} unit={unit} />
         ))}
       </div>

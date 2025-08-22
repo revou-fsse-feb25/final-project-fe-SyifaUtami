@@ -1,17 +1,23 @@
-
+// src/lib/auth.ts
 import { apiClient } from './api';
 
 interface User {
   id: string;
-  email: string;
+  email: string | null;
   firstName: string;
-  lastName: string;
-  role: string;
-  courseCode?: string;
-  year?: number;
-  title?: string;
-  accessLevel?: string;
-  courseManaged?: string;
+  lastName: string | null;
+  role: 'STUDENT' | 'COORDINATOR';
+  createdAt: string;
+  updatedAt: string;
+  
+  // Student-specific fields
+  courseCode?: string | null;
+  year?: number | null;
+  
+  // Coordinator-specific fields
+  title?: string | null;
+  accessLevel?: string | null;
+  courseManaged?: string[];
 }
 
 interface AuthState {
@@ -101,21 +107,26 @@ class AuthManager {
     try {
       const response = await apiClient.login(credentials);
       
-      this.authState = {
-        user: response.user,
-        token: response.access_token,
-        isAuthenticated: true,
-        userType: response.userType as 'student' | 'coordinator',
-      };
+      // Backend returns { success: true, user, userType, access_token, refresh_token, expires_in }
+      if (response.success) {
+        this.authState = {
+          user: response.user,
+          token: response.access_token,
+          isAuthenticated: true,
+          userType: response.userType,
+        };
 
-      this.saveAuthToStorage(
-        response.access_token, 
-        response.refresh_token, 
-        response.user, 
-        response.userType as 'student' | 'coordinator'
-      );
+        this.saveAuthToStorage(
+          response.access_token, 
+          response.refresh_token, 
+          response.user, 
+          response.userType
+        );
 
-      return { success: true };
+        return { success: true };
+      } else {
+        return { success: false, message: 'Login failed' };
+      }
     } catch (error) {
       console.error('Login failed:', error);
       return { 

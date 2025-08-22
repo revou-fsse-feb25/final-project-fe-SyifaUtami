@@ -1,41 +1,49 @@
+
 export interface StudentProgress {
   studentId: string;
   unitCode: string;
-  week1Material: "done" | "not done";
-  week2Material: "done" | "not done";
-  week3Material: "done" | "not done";
-  week4Material: "done" | "not done";
+  week1Material: "DONE" | "NOT_DONE";  // Backend uses enum values
+  week2Material: "DONE" | "NOT_DONE";
+  week3Material: "DONE" | "NOT_DONE";
+  week4Material: "DONE" | "NOT_DONE";
 }
 
 export interface Assignment {
   id: string;
-  name: string;
+  title: string;        // Backend uses 'title' not 'name'
+  description: string;
   unitCode: string;
-  deadline: string;
-  publishedAt: string;
-  status: "open" | "closed";
+  dueDate: string;     // Backend uses 'dueDate' not 'deadline'
+  status: "OPEN" | "CLOSED";  // Backend enum values
+  maxPoints: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Unit {
+  id: string;
   code: string;
   name: string;
+  description: string | null;  // Backend can return null
   courseCode: string;
-  description: string;
   currentWeek: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Course {
+  id: string;
   code: string;
   name: string;
-  units: string[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface StudentSubmission {
-  submissionId?: string;
+  submissionId: string;  // Required, not optional
   studentId: string;
   assignmentId: string;
-  status: 'open' | 'closed'; 
-  submissionStatus: 'empty' | 'draft' | 'submitted' | 'unsubmitted';
+  submissionStatus: 'EMPTY' | 'DRAFT' | 'SUBMITTED' | 'UNSUBMITTED';  // Backend enum values
   submissionName?: string | null;
   submittedAt?: string | null;
   grade?: number | null;
@@ -45,9 +53,12 @@ export interface StudentSubmission {
 
 export interface Teacher {
   id: string;
+  email: string | null;
   firstName: string;
-  lastName: string;
-  email: string; 
+  lastName: string | null;
+  title: string | null;
+  accessLevel: string | null;
+  courseManaged: string[];
   unitsTeached: string[];
 }
 
@@ -59,6 +70,30 @@ export interface Faculty {
   email: string;
   accessLevel: string;
   courseManaged: string[];
+}
+
+// Analytics interfaces (from backend)
+export interface StudentMetrics {
+  totalAssignments: number;
+  submittedAssignments: number;
+  submissionRate: number;
+  averageGrade: number;
+  overallProgress: number;
+  gradedAssignments: number;
+}
+
+export interface StudentAnalytics {
+  student: {
+    id: string;
+    firstName: string;
+    lastName: string | null;
+    email: string | null;
+    courseCode: string | null;
+    year: number | null;
+  };
+  metrics: StudentMetrics;
+  submissions: any[];
+  progress: any[];
 }
 
 export interface CourseMetrics {
@@ -79,6 +114,15 @@ export interface UnitMetrics {
   avgGrade: number;
   submissionRate: number;
   failedAssignments: number;
+}
+
+export interface DashboardMetrics {
+  studentCount: number;
+  teacherCount: number;
+  courseCount: number;
+  avgProgress: number;
+  avgGrade: number;
+  submissionRate: number;
 }
 
 export interface LoadingState {
@@ -117,6 +161,12 @@ export interface AssignmentWithSubmissions {
   gradedCount: number;
 }
 
+// Assignment with submission for student view
+export interface AssignmentWithSubmission {
+  assignment: Assignment;
+  submission?: StudentSubmission;
+}
+
 // Request body for updating submission grades
 export interface UpdateGradeRequest {
   grade: number;
@@ -129,4 +179,40 @@ export interface FilterOption {
   key: string;
   label: string;
   options: { value: string; label: string }[];
+}
+
+// Academic data response structure (from backend /academic-data endpoint)
+export interface AcademicData {
+  courses: Course[];
+  units: Unit[];
+  assignments: Assignment[];
+  teachers: Teacher[];
+  faculty: Teacher[];      // For backward compatibility
+  coordinators: Teacher[]; // For coordinator-specific data
+}
+
+// Pagination interfaces
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface StudentsWithDataResult {
+  students: any[];
+  assignments: any[];
+  progress: any[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+// Trend data for analytics
+export interface TrendData {
+  date: string;
+  submissions: number;
+  averageGrade: number;
 }

@@ -1,67 +1,114 @@
-//check who logs in
 'use client';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-// Combined interface for all user types
+// Backend API User interface (from your Prisma schema and auth service)
 interface User {
-  // Common fields
   id: string;
+  email: string | null;
   firstName: string;
-  lastName: string;
-  email: string;
+  lastName: string | null;
+  role: 'STUDENT' | 'COORDINATOR';
+  createdAt: string;
+  updatedAt: string;
   
-  // Student-specific fields
-  courseCode?: string;
-  year?: number;
+  // Student-specific fields (when role is STUDENT)
+  courseCode?: string | null;
+  year?: number | null;
   
-  // Coordinator-specific fields
-  title?: string;
-  accessLevel?: string;
-  courseManaged?: string[];
+  // Coordinator-specific fields (when role is COORDINATOR)
+  title?: string | null;
+  accessLevel?: string | null;
+  courseManaged?: string[]; // Array of course codes
 }
 
 interface AuthContextType {
   user: User | null;
-  userType: string | null;
-  getUserRole: () => string | null;
+  userType: 'student' | 'coordinator' | null;
+  isAuthenticated: boolean;
+  isStudent: boolean;
+  isCoordinator: boolean;
+  getUserRole: () => 'STUDENT' | 'COORDINATOR' | null;
   getDisplayName: () => string;
   setUser: (user: User | null) => void;
-  setUserType: (type: string | null) => void;
+  setUserType: (type: 'student' | 'coordinator' | null) => void;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [userType, setUserType] = useState<string | null>(null);
+  const [userType, setUserType] = useState<'student' | 'coordinator' | null>(null);
 
   useEffect(() => {
-    // Check if user is stored in localStorage when app loads
-    const storedUser = localStorage.getItem('user');
-    const storedUserType = localStorage.getItem('userType');
+    // Load auth state from localStorage on app initialization
+    const storedUser = localStorage.getItem('user_data');
+    const storedUserType = localStorage.getItem('user_type');
     
     if (storedUser && storedUserType) {
-      setUser(JSON.parse(storedUser));
-      setUserType(storedUserType);
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+        setUserType(storedUserType as 'student' | 'coordinator');
+      } catch (error) {
+        console.error('Failed to parse stored user data:', error);
+        // Clear corrupted data
+        localStorage.removeItem('user_data');
+        localStorage.removeItem('user_type');
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+      }
     }
   }, []);
 
-  const getUserRole = (): string | null => userType;
+  // Computed properties
+  const isAuthenticated = !!user && !!userType;
+  const isStudent = userType === 'student' && user?.role === 'STUDENT';
+  const isCoordinator = userType === 'coordinator' && user?.role === 'COORDINATOR';
+
+  const getUserRole = (): 'STUDENT' | 'COORDINATOR' | null => {
+    return user?.role || null;
+  };
   
   const getDisplayName = (): string => {
     if (!user) return 'User';
     
-    // For coordinators, use title if available
-    if (userType === 'coordinator' && user.title) {
+    // For coordinators, use title if available, otherwise firstName
+    if (isCoordinator && user.title) {
       return user.title;
     }
     
-    // For students or fallback, use first name
-    return user.firstName;
+    // For students or fallback, use firstName
+    return user.firstName || 'User';
+  };
+
+  const logout = () => {
+    // Clear all auth data
+    setUser(null);
+    setUserType(null);
+    
+    // Clear localStorage
+    localStorage.removeItem('user_data');
+    localStorage.removeItem('user_type');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+  };
+
+  const contextValue: AuthContextType = {
+    user,
+    userType,
+    isAuthenticated,
+    isStudent,
+    isCoordinator,
+    getUserRole,
+    getDisplayName,
+    setUser,
+    setUserType,
+    logout
   };
 
   return (
-    <AuthContext.Provider value={{ user, userType, getUserRole, getDisplayName, setUser, setUserType }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
@@ -74,3 +121,6 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
+
+// Export the User type for use in other components
+export type { User };
