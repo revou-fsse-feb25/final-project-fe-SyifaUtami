@@ -1,55 +1,150 @@
 import React from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { 
+  faUsers, 
+  faChalkboardTeacher, 
+  faBook, 
+  faBookOpen,
+  faTasks, 
+  faFileAlt, 
+  faChartLine, 
+  faStar, 
+  faLayerGroup,
+  faChartBar
+} from '@fortawesome/free-solid-svg-icons';
 
 interface StatCardProps {
   title: string;
-  value: number;
-  icon?: 'users' | 'teachers' | 'courses';
+  value: number | string;
+  icon?: 'users' | 'teachers' | 'courses' | 'assignments' | 'submissions' | 'progress' | 'grade' | 'units' | 'analytics';
   isLoading?: boolean;
+  subtitle?: string;
+  trend?: {
+    value: number;
+    isPositive: boolean;
+    label?: string;
+  };
+  color?: 'primary' | 'secondary' | 'success' | 'warning' | 'info';
+  size?: 'sm' | 'md' | 'lg';
+  className?: string;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ title, value, icon, isLoading = false }) => {
+const StatCard: React.FC<StatCardProps> = ({ 
+  title, 
+  value, 
+  icon, 
+  isLoading = false,
+  subtitle,
+  trend,
+  color = 'primary',
+  size = 'md',
+  className = ''
+}) => {
   const getIcon = () => {
+    const iconSize = size === 'sm' ? 'lg' : size === 'lg' ? '2x' : 'xl';
+    const iconColor = getIconColor();
+
     switch (icon) {
       case 'users':
-        return (
-          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--primary-red)' }}>
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-          </svg>
-        );
+        return <FontAwesomeIcon icon={faUsers} size={iconSize} style={{ color: iconColor }} />;
       case 'teachers':
-        return (
-          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--primary-red)' }}>
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-        );
+        return <FontAwesomeIcon icon={faChalkboardTeacher} size={iconSize} style={{ color: iconColor }} />;
       case 'courses':
-        return (
-          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--primary-red)' }}>
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-          </svg>
-        );
+        return <FontAwesomeIcon icon={faBook} size={iconSize} style={{ color: iconColor }} />;
+      case 'units':
+        return <FontAwesomeIcon icon={faLayerGroup} size={iconSize} style={{ color: iconColor }} />;
+      case 'assignments':
+        return <FontAwesomeIcon icon={faTasks} size={iconSize} style={{ color: iconColor }} />;
+      case 'submissions':
+        return <FontAwesomeIcon icon={faFileAlt} size={iconSize} style={{ color: iconColor }} />;
+      case 'progress':
+        return <FontAwesomeIcon icon={faChartLine} size={iconSize} style={{ color: iconColor }} />;
+      case 'grade':
+        return <FontAwesomeIcon icon={faStar} size={iconSize} style={{ color: iconColor }} />;
+      case 'analytics':
+        return <FontAwesomeIcon icon={faChartBar} size={iconSize} style={{ color: iconColor }} />;
       default:
-        return null;
+        return <FontAwesomeIcon icon={faChartBar} size={iconSize} style={{ color: iconColor }} />;
     }
   };
 
+  const getIconColor = () => {
+    switch (color) {
+      case 'primary':
+        return 'var(--primary-red)';
+      case 'secondary':
+        return 'var(--primary-dark)';
+      case 'success':
+        return '#10b981';
+      case 'warning':
+        return '#f59e0b';
+      case 'info':
+        return '#3b82f6';
+      default:
+        return 'var(--primary-red)';
+    }
+  };
+
+  const getSizeClasses = () => {
+    switch (size) {
+      case 'sm':
+        return {
+          container: 'p-4',
+          value: 'text-2xl font-bold',
+          title: 'text-xs font-medium',
+          subtitle: 'text-xs'
+        };
+      case 'lg':
+        return {
+          container: 'p-8',
+          value: 'text-4xl font-bold',
+          title: 'text-base font-medium',
+          subtitle: 'text-sm'
+        };
+      default: // md
+        return {
+          container: 'p-6',
+          value: 'text-3xl font-bold',
+          title: 'text-sm font-medium',
+          subtitle: 'text-sm'
+        };
+    }
+  };
+
+  const sizeClasses = getSizeClasses();
+
   return (
-    <div className="lms-card">
+    <div 
+      className={`lms-card transition-all duration-200 ${sizeClasses.container} ${className}`}
+    >
       <div className="flex items-center space-x-4">
         {icon && (
           <div className="flex-shrink-0">
             {getIcon()}
           </div>
         )}
-        <div>
-          <p className="text-sm font-medium text-gray-600">{title}</p>
+        <div className="flex-1 min-w-0">
+          <p className={`${sizeClasses.title} text-gray-600 truncate`}>{title}</p>
           {isLoading ? (
             <div className="animate-pulse">
-              <div className="h-8 bg-gray-200 rounded w-16"></div>
+              <div className={`h-8 bg-gray-200 rounded w-16 ${size === 'sm' ? 'h-6' : size === 'lg' ? 'h-10' : 'h-8'}`}></div>
             </div>
           ) : (
-            <p className="text-3xl font-bold" style={{ color: 'var(--text-black)' }}>
-              {value.toLocaleString()}
+            <div className="flex items-center space-x-2">
+              <p className={`${sizeClasses.value}`} style={{ color: 'var(--text-black)' }}>
+                {typeof value === 'number' ? value.toLocaleString() : value}
+              </p>
+              {trend && (
+                <span className={`text-xs font-semibold ${trend.isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                  {trend.isPositive ? '↗' : '↘'} {Math.abs(trend.value)}%
+                  {trend.label && ` ${trend.label}`}
+                </span>
+              )}
+            </div>
+          )}
+          {subtitle && !isLoading && (
+            <p className={`${sizeClasses.subtitle} text-gray-500 mt-1 truncate`}>
+              {subtitle}
             </p>
           )}
         </div>
@@ -59,3 +154,36 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon, isLoading = fal
 };
 
 export default StatCard;
+
+/* USAGE EXAMPLES:
+
+// Basic usage
+<StatCard title="Students" value={150} icon="users" />
+
+// With loading state
+<StatCard title="Teachers" value={25} icon="teachers" isLoading={isLoading} />
+
+// With subtitle and trend
+<StatCard 
+  title="Course Progress" 
+  value={78} 
+  icon="progress"
+  subtitle="Average across all courses"
+  trend={{ value: 5, isPositive: true, label: "vs last month" }}
+/>
+
+// Different sizes and colors
+<StatCard title="Assignments" value={45} icon="assignments" size="lg" color="success" />
+
+// For API integration
+<StatCard
+  title="Students Enrolled"
+  value={metrics?.studentCount || 0}
+  icon="users"
+  isLoading={isLoading}
+  subtitle={isLoading ? undefined : `${metrics?.courseCount} courses`}
+/>
+
+// With FontAwesome icons
+<StatCard title="Analytics" value="View Details" icon="analytics" color="info" />
+*/

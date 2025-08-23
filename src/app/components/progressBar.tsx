@@ -5,26 +5,20 @@ interface ProgressBarProps {
   progress: number;
   /** Height of the progress bar. Options: 'md' (12px), 'lg' (16px) */
   size?: 'md' | 'lg';
-  /** Color theme for the progress bar */
-  variant?: 'primary' | 'secondary' | 'success' | 'warning';
   /** Custom label text (automatically shows percentage) */
   label?: string;
   /** Additional CSS classes */
   className?: string;
-  /** Enable success glow effect */
-  isSuccess?: boolean;
-  /** Enable warning red color */
-  isWarning?: boolean;
+  /** Loading state */
+  isLoading?: boolean;
 }
 
 const ProgressBar: React.FC<ProgressBarProps> = ({
   progress,
   size = 'md',
-  variant = 'primary',
   label,
   className = '',
-  isSuccess = false,
-  isWarning = false
+  isLoading = false
 }) => {
   // Ensure progress is between 0 and 100
   const normalizedProgress = Math.min(Math.max(progress, 0), 100);
@@ -35,32 +29,25 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     lg: 'h-4'
   };
 
-  // Color variants using CSS variables from your global.css
-  const getProgressColor = () => {
-    if (isWarning) return '#ef4444'; // Red for warnings
-    
-    switch (variant) {
-      case 'primary':
-        return 'var(--primary-dark)';
-      case 'secondary':
-        return 'var(--primary-red)';
-      case 'warning':
-        return '#f59e0b';
-      default:
-        return 'var(--primary-dark)';
-    }
-  };
-
-  // Glow effect for success
-  const getGlowStyle = () => {
-    if (isSuccess) {
-      return {
-        boxShadow: '0 0 10px rgba(150, 234, 255, 0.88)',
-        filter: 'brightness(1.1)'
-      };
-    }
-    return {};
-  };
+  if (isLoading) {
+    return (
+      <div className={`w-full ${className}`}>
+        {label && (
+          <div className="flex justify-between items-center mb-2">
+            <div className="animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-32"></div>
+            </div>
+            <div className="animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-12"></div>
+            </div>
+          </div>
+        )}
+        <div className={`w-full bg-gray-200 rounded-full ${sizeClasses[size]}`}>
+          <div className="h-full bg-gray-300 rounded-full animate-pulse" style={{ width: '60%' }} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`w-full ${className}`}>
@@ -83,8 +70,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
           className={`${sizeClasses[size]} rounded-full`}
           style={{ 
             width: `${normalizedProgress}%`,
-            backgroundColor: getProgressColor(),
-            ...getGlowStyle()
+            backgroundColor: 'var(--primary-dark)'
           }}
         />
       </div>
@@ -94,9 +80,8 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
 
 export default ProgressBar;
 
-// Usage Examples:
+/* USAGE EXAMPLES:
 
-/* 
 // Basic usage
 <ProgressBar progress={75} />
 
@@ -107,29 +92,13 @@ export default ProgressBar;
 />
 
 // Different sizes
-<ProgressBar progress={60} size="lg" variant="secondary" />
+<ProgressBar progress={60} size="lg" />
 
-// Success with glow effect (customize when to show)
-<ProgressBar 
-  progress={95}
-  variant="success"
-  label="Pass Rate"
-  isSuccess={progress >= 95} // Custom condition
-/>
-
-// Warning with red color (customize when to show)
-<ProgressBar 
-  progress={55}
-  variant="warning"
-  label="Drop Out Rate"
-  isWarning={progress > 50} // Custom condition: >50% is warning
-/>
-
-// Low satisfaction warning
-<ProgressBar 
-  progress={3}
-  variant="warning"
-  label="Satisfaction Rate"
-  isWarning={progress < 5} // Custom condition: <5% is warning
+// With loading state
+<ProgressBar
+  progress={metrics?.avgProgress || 0}
+  label="Average Student Progress"
+  isLoading={isLoading}
+  size="lg"
 />
 */

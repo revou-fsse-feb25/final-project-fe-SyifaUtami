@@ -1,241 +1,200 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
-import SearchBar from '../../components/searchBar';
-import DataTable, { TableColumn } from '../../components/dataTable';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlus, faTrash, faEdit } from '@fortawesome/free-solid-svg-icons';
-import { Teacher } from '../../../types';
+import DataTable, { TableColumn } from '../../components/dataTable';
+import SearchBar from '../../components/searchBar';
+import StatCard from '../../components/statCard';
 
-interface TeachersPageData {
-  teachers: Teacher[];
-  units: Array<{ code: string; name: string }>;
-}
+import { Teacher, ApiResponse, PaginatedResponse } from '../../../types';
 
-export default function TeachersPage() {
-  const [data, setData] = useState<TeachersPageData | null>(null);
-  const [filteredTeachers, setFilteredTeachers] = useState<Teacher[]>([]);
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://imajine-uni-api-production.up.railway.app';
+
+export default function CoordinatorTeachersPage() {
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [successMessage, setSuccessMessage] = useState<string>('');
+  const [stats, setStats] = useState({ total: 0, avgUnitsPerTeacher: 0, activeTeachers: 0 });
   
-  // Modal states
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
-  
-  // Form states
-  const [newTeacher, setNewTeacher] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    unitsTeached: [] as string[]
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
 
-  // Helper function to show success message
+  // Fetch teachers data from Railway backend
+  const fetchTeachers = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch(`${API_BASE_URL}/teachers`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeUser('userType');
+          throw new Error('Session expired. Please log in again.');
+        }
+        throw new Error(`Failed to fetch teachers: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Handle different response formats
+      const teachersList = data.success ? data.data : (data.teachers || data);
+      setTeachers(teachersList || []);
+
+      // Calculate stats
+      const totalTeachers = teachersList?.length || 0;
+      const activeTeachers = teachersList?.filter((t: Teacher) => t.unitsTeached?.length > 0).length || 0;
+      const totalUnits = teachersList?.reduce((sum: number, t: Teacher) => sum + (t.unitsTeached?.length || 0), 0) || 0;
+      const avgUnitsPerTeacher = totalTeachers > 0 ? Math.round((totalUnits / totalTeachers) * 10) / 10 : 0;
+
+      setStats({ 
+        total: totalTeachers, 
+        avgUnitsPerTeacher, 
+        activeTeachers 
+      });
+
+    } catch (err) {
+      console.error('Teachers fetch error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load teachers');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTeachers();
+  }, []);
+
+  // Show success message
   const showSuccessMessage = (message: string) => {
     setSuccessMessage(message);
     setTimeout(() => setSuccessMessage(''), 3000);
   };
 
-  // Fetch teachers and units data
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        const response = await fetch('/api/academic-data');
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch data');
-        }
-
-        const academicData = await response.json();
-        
-        const teachersData = {
-          teachers: academicData.teachers || [],
-          units: academicData.units || []
-        };
-        
-        setData(teachersData);
-        setFilteredTeachers(teachersData.teachers);
-        
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load teachers');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  // Handle search
-  const handleSearch = useCallback((query: string, filters: Record<string, string>) => {
-    if (!data) return;
-
-    let filtered = [...data.teachers];
-
-    // Text search (name, email, units)
-    if (query && query.trim()) {
-      const searchLower = query.toLowerCase().trim();
-      filtered = filtered.filter(teacher => {
-        const firstName = (teacher.firstName || '').toString().toLowerCase();
-        const lastName = (teacher.lastName || '').toString().toLowerCase();
-        const email = (teacher.email || '').toString().toLowerCase();
-        const fullName = `${teacher.firstName || ''} ${teacher.lastName || ''}`.toLowerCase().trim();
-        const units = teacher.unitsTeached.join(' ').toLowerCase();
-        
-        return firstName.includes(searchLower) ||
-               lastName.includes(searchLower) ||
-               email.includes(searchLower) ||
-               fullName.includes(searchLower) ||
-               units.includes(searchLower);
-      });
+  // Delete teacher
+  const handleDeleteTeacher = async (teacher: Teacher) => {
+    if (!window.confirm(`Are you sure you want to remove ${teacher.firstName} ${teacher.lastName || ''}?`)) {
+      return;
     }
 
-    setFilteredTeachers(filtered);
-  }, [data]);
-
-  // Handle add teacher
-  const handleAddTeacher = async () => {
     try {
-      setIsSubmitting(true);
-      
-      // Validate form
-      if (!newTeacher.firstName.trim() || !newTeacher.lastName.trim() || !newTeacher.email.trim()) {
-        alert('Please fill in all required fields');
-        return;
-      }
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('No authentication token found');
 
-      // Generate ID (simple implementation - in production, use proper UUID)
-      const newId = `t${String(Date.now()).slice(-3)}`;
-      
-      const teacherToAdd = {
-        id: newId,
-        firstName: newTeacher.firstName.trim(),
-        lastName: newTeacher.lastName.trim(),
-        email: newTeacher.email.trim(),
-        unitsTeached: newTeacher.unitsTeached
-      };
-
-      const response = await fetch('/api/teachers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(teacherToAdd),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to add teacher');
-      }
-
-      // Update local state
-      setData(prevData => {
-        if (!prevData) return prevData;
-        const updatedTeachers = [...prevData.teachers, teacherToAdd];
-        return { ...prevData, teachers: updatedTeachers };
-      });
-      setFilteredTeachers(prev => [...prev, teacherToAdd]);
-      
-      // Reset form and close modal
-      setNewTeacher({ firstName: '', lastName: '', email: '', unitsTeached: [] });
-      setShowAddModal(false);
-      showSuccessMessage('Teacher added successfully');
-      
-    } catch (err) {
-      alert(`Failed to add teacher: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Handle delete teacher
-  const handleDeleteTeacher = async () => {
-    if (!teacherToDelete) return;
-
-    try {
-      setIsSubmitting(true);
-
-      const response = await fetch(`/api/teachers/${teacherToDelete.id}`, {
+      const response = await fetch(`${API_BASE_URL}/teachers/${teacher.id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to delete teacher');
+        throw new Error('Failed to delete teacher');
       }
 
-      // Update local state
-      setData(prevData => {
-        if (!prevData) return prevData;
-        const updatedTeachers = prevData.teachers.filter(t => t.id !== teacherToDelete.id);
-        return { ...prevData, teachers: updatedTeachers };
-      });
-      setFilteredTeachers(prev => prev.filter(t => t.id !== teacherToDelete.id));
-      
-      setShowDeleteModal(false);
-      setTeacherToDelete(null);
+      // Remove from local state
+      setTeachers(prev => prev.filter(t => t.id !== teacher.id));
       showSuccessMessage('Teacher removed successfully');
       
     } catch (err) {
-      alert(`Failed to delete teacher: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setIsSubmitting(false);
+      console.error('Delete error:', err);
+      alert(`Failed to remove teacher: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
-  // Handle unit selection for new teacher
-  const handleUnitToggle = (unitCode: string) => {
-    setNewTeacher(prev => ({
-      ...prev,
-      unitsTeached: prev.unitsTeached.includes(unitCode)
-        ? prev.unitsTeached.filter(u => u !== unitCode)
-        : [...prev.unitsTeached, unitCode]
-    }));
-  };
+  // Filter teachers based on search
+  const filteredTeachers = useMemo(() => {
+    if (!searchQuery) return teachers;
+    
+    const query = searchQuery.toLowerCase();
+    return teachers.filter(teacher => {
+      const searchableText = `${teacher.firstName} ${teacher.lastName || ''} ${teacher.email || ''} ${teacher.unitsTeached?.join(' ') || ''}`.toLowerCase();
+      return searchableText.includes(query);
+    });
+  }, [teachers, searchQuery]);
 
-  // Get unit name from code
-  const getUnitName = (unitCode: string): string => {
-    const unit = data?.units.find(u => u.code === unitCode);
-    return unit ? unit.name : unitCode;
-  };
+  // Handle search
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+  }, []);
 
-  // Define table columns
-  const teacherColumns: TableColumn<Teacher>[] = [
+  // Teacher table columns
+  const teacherColumns: TableColumn<Teacher>[] = useMemo(() => [
     {
-      key: 'id',
-      label: 'Teacher ID',
-      className: 'font-medium'
-    },
-    {
-      key: 'firstName',
+      key: 'name',
       label: 'Name',
-      render: (teacher) => `${teacher.firstName} ${teacher.lastName}`
+      render: (teacher) => (
+        <div>
+          <div className="font-medium">
+            {teacher.firstName} {teacher.lastName || ''}
+          </div>
+          {teacher.title && (
+            <div className="text-sm text-gray-600">{teacher.title}</div>
+          )}
+        </div>
+      )
     },
     {
       key: 'email',
       label: 'Email',
-      className: 'text-gray-600'
+      render: (teacher) => (
+        <div className="text-sm">{teacher.email || 'No email'}</div>
+      )
     },
     {
-      key: 'unitsTeached',
-      label: 'Units Taught',
+      key: 'accessLevel',
+      label: 'Access Level',
       render: (teacher) => (
-        <div className="flex flex-wrap gap-1">
-          {teacher.unitsTeached.map((unitCode) => (
-            <span
-              key={unitCode}
-              className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-white"
-              style={{ border: '1px solid #8D0B41', color: '#8D0B41' }}
-              title={getUnitName(unitCode)}
-            >
-              {unitCode}
-            </span>
-          ))}
-          {teacher.unitsTeached.length === 0 && (
-            <span className="text-gray-500 text-sm">No units assigned</span>
+        <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+          {teacher.accessLevel || 'Standard'}
+        </span>
+      )
+    },
+    {
+      key: 'units',
+      label: 'Units Teaching',
+      render: (teacher) => (
+        <div>
+          <div className="text-sm font-medium">
+            {teacher.unitsTeached?.length || 0} units
+          </div>
+          {teacher.unitsTeached && teacher.unitsTeached.length > 0 && (
+            <div className="text-xs text-gray-600">
+              {teacher.unitsTeached.slice(0, 3).join(', ')}
+              {teacher.unitsTeached.length > 3 && ` +${teacher.unitsTeached.length - 3} more`}
+            </div>
+          )}
+        </div>
+      )
+    },
+    {
+      key: 'courses',
+      label: 'Courses Managed',
+      render: (teacher) => (
+        <div>
+          <div className="text-sm font-medium">
+            {teacher.courseManaged?.length || 0} courses
+          </div>
+          {teacher.courseManaged && teacher.courseManaged.length > 0 && (
+            <div className="text-xs text-gray-600">
+              {teacher.courseManaged.join(', ')}
+            </div>
           )}
         </div>
       )
@@ -244,27 +203,42 @@ export default function TeachersPage() {
       key: 'actions',
       label: 'Actions',
       render: (teacher) => (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setTeacherToDelete(teacher);
-            setShowDeleteModal(true);
-          }}
-          className="text-red-600 hover:text-red-800 hover:underline"
-        >
-          <FontAwesomeIcon icon={faTrash} className="mr-1" />
-          Remove
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              // Navigate to edit teacher page (you can implement this)
+              console.log('Edit teacher:', teacher.id);
+            }}
+            className="text-blue-600 hover:text-blue-800 hover:underline text-sm"
+          >
+            <FontAwesomeIcon icon={faEdit} className="mr-1" />
+            Edit
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteTeacher(teacher);
+            }}
+            className="text-red-600 hover:text-red-800 hover:underline text-sm"
+          >
+            <FontAwesomeIcon icon={faTrash} className="mr-1" />
+            Remove
+          </button>
+        </div>
       )
     }
-  ];
+  ], []);
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="text-center">
-          <h1 className="text-2xl font-semibold mb-4" style={{ color: 'var(--primary-red)' }}>Error</h1>
-          <p className="text-lg text-gray-600">{error}</p>
+          <h1 className="text-2xl font-semibold mb-4 text-red-600">Error</h1>
+          <p className="text-lg text-gray-600 mb-4">{error}</p>
+          <button onClick={fetchTeachers} className="lms-button-primary">
+            Try Again
+          </button>
         </div>
       </div>
     );
@@ -285,7 +259,10 @@ export default function TeachersPage() {
           </div>
           
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => {
+              // Navigate to add teacher page (you can implement this)
+              console.log('Add new teacher');
+            }}
             className="lms-button-primary"
           >
             <FontAwesomeIcon icon={faPlus} className="mr-2" />
@@ -301,6 +278,31 @@ export default function TeachersPage() {
         )}
       </div>
 
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <StatCard
+          title="Total Teachers"
+          value={stats.total}
+          icon="teachers"
+          isLoading={isLoading}
+          subtitle="All teaching staff"
+        />
+        <StatCard
+          title="Active Teachers"
+          value={stats.activeTeachers}
+          icon="users"
+          isLoading={isLoading}
+          subtitle="Currently teaching units"
+        />
+        <StatCard
+          title="Avg Units per Teacher"
+          value={stats.avgUnitsPerTeacher}
+          icon="units"
+          isLoading={isLoading}
+          subtitle="Average workload"
+        />
+      </div>
+
       {/* Search Bar */}
       <SearchBar
         placeholder="Search by name, email, or units taught..."
@@ -312,7 +314,7 @@ export default function TeachersPage() {
       {/* Results Summary */}
       <div className="flex justify-between items-center mb-6">
         <div className="text-sm text-gray-600">
-          Showing {filteredTeachers.length} of {data?.teachers.length || 0} teachers
+          Showing {filteredTeachers.length} of {teachers.length} teachers
         </div>
       </div>
 
@@ -322,130 +324,8 @@ export default function TeachersPage() {
         columns={teacherColumns}
         isLoading={isLoading}
         emptyMessage="No teachers found. Add a teacher to get started."
-        loadingRows={6}
+        loadingRows={5}
       />
-
-      {/* Add Teacher Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-semibold mb-4">Add New Teacher</h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  First Name *
-                </label>
-                <input
-                  type="text"
-                  value={newTeacher.firstName}
-                  onChange={(e) => setNewTeacher(prev => ({ ...prev, firstName: e.target.value }))}
-                  className="lms-input w-full"
-                  disabled={isSubmitting}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Last Name *
-                </label>
-                <input
-                  type="text"
-                  value={newTeacher.lastName}
-                  onChange={(e) => setNewTeacher(prev => ({ ...prev, lastName: e.target.value }))}
-                  className="lms-input w-full"
-                  disabled={isSubmitting}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  value={newTeacher.email}
-                  onChange={(e) => setNewTeacher(prev => ({ ...prev, email: e.target.value }))}
-                  className="lms-input w-full"
-                  disabled={isSubmitting}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Units to Teach
-                </label>
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  {data?.units.map((unit) => (
-                    <label key={unit.code} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={newTeacher.unitsTeached.includes(unit.code)}
-                        onChange={() => handleUnitToggle(unit.code)}
-                        className="mr-2"
-                        disabled={isSubmitting}
-                      />
-                      <span className="text-sm">{unit.code} - {unit.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowAddModal(false);
-                  setNewTeacher({ firstName: '', lastName: '', email: '', unitsTeached: [] });
-                }}
-                className="lms-button-secondary"
-                disabled={isSubmitting}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddTeacher}
-                className="lms-button-primary"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? 'Adding...' : 'Add Teacher'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && teacherToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-semibold mb-4">Confirm Removal</h2>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to remove <strong>{teacherToDelete.firstName} {teacherToDelete.lastName}</strong>? This action cannot be undone.
-            </p>
-            
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setTeacherToDelete(null);
-                }}
-                className="lms-button-secondary"
-                disabled={isSubmitting}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteTeacher}
-                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? 'Removing...' : 'Remove Teacher'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

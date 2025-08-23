@@ -1,8 +1,8 @@
 'use client';
 import { FC, useState, useEffect } from 'react';
 import { useAuth } from '../../context/authContext';
-import { apiClient } from '../../../lib/api'
 import StudentUnitCard from '../../components/studentUnitCard';
+import { apiClient } from '@/src/lib/api';
 
 interface Course {
   id: string;
