@@ -17,6 +17,25 @@ interface User {
   // Coordinator-specific fields
   title?: string | null;
   accessLevel?: string | null;
+  courseManaged?: string[]; // ADD THIS LINE
+}
+
+interface User {
+  id: string;
+  email: string | null;
+  firstName: string;
+  lastName: string | null;
+  role: 'STUDENT' | 'COORDINATOR';
+  createdAt: string;
+  updatedAt: string;
+  
+  // Student-specific fields
+  courseCode?: string | null;
+  year?: number | null;
+  
+  // Coordinator-specific fields
+  title?: string | null;
+  accessLevel?: string | null;
   courseManaged?: string[];
 }
 

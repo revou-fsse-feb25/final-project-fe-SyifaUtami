@@ -49,6 +49,7 @@ export interface Course {
   name: string;
   createdAt: string;
   updatedAt: string;
+    units?: string[]; // ADD THIS LINE
 }
 
 export interface Unit {
@@ -60,6 +61,7 @@ export interface Unit {
   currentWeek: number;
   createdAt: string;
   updatedAt: string;
+  progressPercentage?: number;
 }
 
 export interface StudentProgress {

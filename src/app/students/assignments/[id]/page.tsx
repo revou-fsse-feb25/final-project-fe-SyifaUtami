@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useAuth } from '../../../context/authContext';
+import { authManager, type User } from '@/src/lib/auth';
 import { Assignment, StudentSubmission, Teacher } from '../../../../types';
 
 // Extended Assignment interface to include description
@@ -14,6 +14,7 @@ interface ExtendedAssignment extends Assignment {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://imajine-uni-api-production.up.railway.app';
 
 export default function StudentAssignmentDetailPage() {
+  const [user, setUser] = useState<User | null>(null);
   const [assignment, setAssignment] = useState<ExtendedAssignment | null>(null);
   const [submission, setSubmission] = useState<StudentSubmission | null>(null);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -22,11 +23,16 @@ export default function StudentAssignmentDetailPage() {
   
   const router = useRouter();
   const params = useParams();
-  const { user } = useAuth();
   
   // Handle both assignment ID and submission ID
   const id = params?.id as string;
   const isSubmissionId = id?.startsWith('sub_') || false;
+
+  // Initialize user from auth manager
+  useEffect(() => {
+    const authState = authManager.getAuthState();
+    setUser(authState.user);
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -40,7 +46,7 @@ export default function StudentAssignmentDetailPage() {
         setIsLoading(true);
         setError(null);
 
-        const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+        const token = localStorage.getItem('access_token');
         if (!token) {
           throw new Error('Authentication token not found');
         }
@@ -73,7 +79,7 @@ export default function StudentAssignmentDetailPage() {
             }
           }
         } else {
-          // Fetch assignment directly
+          // Direct assignment fetch
           const assignmentResponse = await fetch(`${API_BASE_URL}/assignments/${id}`, { headers });
           
           if (!assignmentResponse.ok) {
@@ -82,36 +88,24 @@ export default function StudentAssignmentDetailPage() {
           
           const assignmentResult = await assignmentResponse.json();
           assignmentData = assignmentResult.success ? assignmentResult.data : assignmentResult;
-
-          // Try to fetch submission for this assignment and current user
-          if (user?.id && assignmentData?.id) {
+          
+          // Try to get submission for this assignment and current user
+          if (user && assignmentData) {
             try {
-              const submissionResponse = await fetch(
-                `${API_BASE_URL}/assignments?studentId=${user.id}&assignmentId=${assignmentData.id}&includeSubmissions=true`, 
-                { headers }
-              );
-              
-              if (submissionResponse.ok) {
-                const submissionResult = await submissionResponse.json();
-                const submissions = submissionResult.success ? submissionResult.data : submissionResult;
-                submissionData = Array.isArray(submissions) ? submissions[0] : submissions;
+              const submissionsResponse = await fetch(`${API_BASE_URL}/assignments?studentId=${user.id}`, { headers });
+              if (submissionsResponse.ok) {
+                const submissionsResult = await submissionsResponse.json();
+                const submissions = submissionsResult.success ? submissionsResult.data : submissionsResult;
+                
+                // Find submission for this specific assignment
+                submissionData = Array.isArray(submissions) 
+                  ? submissions.find((s: any) => s.assignmentId === id || s.assignment?.id === id) || null
+                  : null;
               }
-            } catch (err) {
-              // Submission fetch failed, but continue without it
-              console.warn('Could not fetch submission data:', err);
+            } catch (submissionError) {
+              console.warn('Could not fetch submission data:', submissionError);
             }
           }
-        }
-
-        // Fetch teachers data for display
-        try {
-          const teachersResponse = await fetch(`${API_BASE_URL}/academic-data`, { headers });
-          if (teachersResponse.ok) {
-            const academicData = await teachersResponse.json();
-            setTeachers(academicData.success ? academicData.data.teachers : academicData.teachers || []);
-          }
-        } catch (err) {
-          console.warn('Could not fetch teachers data:', err);
         }
 
         if (!assignmentData) {
@@ -120,56 +114,78 @@ export default function StudentAssignmentDetailPage() {
 
         setAssignment(assignmentData);
         setSubmission(submissionData);
-        
+
+        // Fetch teachers data if needed
+        try {
+          const teachersResponse = await fetch(`${API_BASE_URL}/teachers`, { headers });
+          if (teachersResponse.ok) {
+            const teachersResult = await teachersResponse.json();
+            const teachersData = teachersResult.success ? teachersResult.data : teachersResult;
+            setTeachers(Array.isArray(teachersData) ? teachersData : []);
+          }
+        } catch (teacherError) {
+          console.warn('Could not fetch teachers data:', teacherError);
+        }
+
       } catch (err) {
-        console.error('Fetch error:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch data');
+        console.error('Error fetching assignment data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load assignment');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchData();
-  }, [id, isSubmissionId, user?.id]);
+    if (user) {
+      fetchData();
+    }
+  }, [id, isSubmissionId, user]);
 
-  const formatDate = (dateString?: string): string => {
-    if (!dateString) return 'No date provided';
-    
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  // Safe date formatting
+  const formatDate = (dateString?: string | null): string => {
+    if (!dateString) return 'No deadline set';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return 'Invalid date';
+    }
   };
 
-  const getTeacherName = (teacherCode: string): string => {
-    const teacher = teachers.find((t: Teacher) => t.id === teacherCode);
-    return teacher ? `${teacher.firstName} ${teacher.lastName}` : teacherCode;
+  // Safe property access
+  const getAssignmentTitle = (assignment: ExtendedAssignment): string => {
+    return assignment.name || assignment.title || 'Untitled Assignment';
   };
 
-  const handleSubmitClick = () => {
-    router.push(`/students/assignments/${id}/submit`);
+  const getAssignmentDeadline = (assignment: ExtendedAssignment): string | null => {
+    return assignment.deadline || assignment.dueDate || null;
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[var(--primary-red)]"></div>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--card-background)' }}>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{ borderColor: 'var(--primary-red)' }}></div>
+          <p style={{ color: 'var(--text-black)' }}>Loading assignment...</p>
+        </div>
       </div>
     );
   }
 
   if (error || !assignment) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--card-background)' }}>
         <div className="text-center">
-          <h1 className="text-2xl font-semibold mb-4" style={{ color: 'var(--primary-red)' }}>Error</h1>
-          <p className="text-lg text-gray-600">{error || 'Assignment not found'}</p>
-          <button 
-            onClick={() => router.back()} 
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          <p className="text-xl mb-4" style={{ color: 'var(--text-black)' }}>
+            {error || 'Assignment not found'}
+          </p>
+          <button
+            onClick={() => router.back()}
+            className="lms-button-primary"
           >
             Go Back
           </button>
@@ -178,219 +194,157 @@ export default function StudentAssignmentDetailPage() {
     );
   }
 
+  const deadline = getAssignmentDeadline(assignment);
+  const isOverdue = deadline && new Date() > new Date(deadline);
+
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
-      {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2" style={{ color: 'var(--text-black)' }}>
-          {assignment.name || assignment.title || assignment.id}
-        </h1>
-        <p className="text-lg text-gray-600">
-          {isSubmissionId ? 'Submission Details' : 'Assignment Details'}
-        </p>
-      </div>
-
-      {/* Details Table */}
-      <div className="lms-table">
-        <table className="w-full">
-          <tbody>
-            <tr className="border-b border-[var(--border-color)]">
-              <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)', width: '200px' }}>
-                Name:
-              </td>
-              <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                {assignment.name || assignment.title || 'Untitled Assignment'}
-              </td>
-            </tr>
-            
-            <tr className="border-b border-[var(--border-color)]">
-              <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
-                Unit:
-              </td>
-              <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                {assignment.unitCode}
-              </td>
-            </tr>
-            
-            <tr className="border-b border-[var(--border-color)]">
-              <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
-                Deadline:
-              </td>
-              <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                {formatDate(assignment.deadline || assignment.dueDate)}
-              </td>
-            </tr>
-
-            <tr className="border-b border-[var(--border-color)]">
-              <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
-                Status:
-              </td>
-              <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                <span className={`px-2 py-1 rounded text-sm font-medium ${
-                  assignment.status === 'OPEN' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                }`}>
-                  {assignment.status}
-                </span>
-              </td>
-            </tr>
-
-            <tr className="border-b border-[var(--border-color)]">
-              <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
-                Published:
-              </td>
-              <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                {formatDate(assignment.publishedAt)}
-              </td>
-            </tr>
-
-            {/* Submission-specific fields */}
-            {isSubmissionId && submission && (
-              <>
-                <tr className="border-b border-[var(--border-color)]">
-                  <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
-                    Submission Status:
-                  </td>
-                  <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                    <span className={`px-2 py-1 rounded text-sm font-medium ${
-                      submission.submissionStatus === 'SUBMITTED' ? 'bg-green-100 text-green-800' :
-                      submission.submissionStatus === 'DRAFT' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {submission.submissionStatus}
-                    </span>
-                  </td>
-                </tr>
-                
-                <tr className="border-b border-[var(--border-color)]">
-                  <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
-                    Submitted at:
-                  </td>
-                  <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                    {submission.submittedAt ? formatDate(submission.submittedAt) : 'Not submitted'}
-                  </td>
-                </tr>
-                
-                <tr className="border-b border-[var(--border-color)]">
-                  <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
-                    Submission name:
-                  </td>
-                  <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                    {submission.submissionName || 'No file submitted'}
-                  </td>
-                </tr>
-                
-                <tr className="border-b border-[var(--border-color)]">
-                  <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
-                    Grade:
-                  </td>
-                  <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                    {submission.grade !== null && submission.grade !== undefined ? 
-                      `${submission.grade}/100` : 'Not graded yet'}
-                  </td>
-                </tr>
-
-                {submission.comment && (
-                  <tr className="border-b border-[var(--border-color)]">
-                    <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
-                      Comment:
-                    </td>
-                    <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                      {submission.comment}
-                    </td>
-                  </tr>
-                )}
-
-                {submission.gradedBy && (
-                  <tr className="border-b border-[var(--border-color)]">
-                    <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
-                      Graded by:
-                    </td>
-                    <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                      {getTeacherName(submission.gradedBy)}
-                    </td>
-                  </tr>
-                )}
-
-                {submission.gradedAt && (
-                  <tr className="border-b border-[var(--border-color)]">
-                    <td className="py-4 px-6 font-semibold bg-white" style={{ color: 'var(--text-black)' }}>
-                      Graded at:
-                    </td>
-                    <td className="py-4 px-6 bg-white" style={{ color: 'var(--text-black)' }}>
-                      {formatDate(submission.gradedAt)}
-                    </td>
-                  </tr>
-                )}
-              </>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Description */}
-      {assignment.description && (
-        <div className="lms-card mt-6">
-          <h3 className="text-xl font-semibold mb-4" style={{ color: 'var(--text-black)' }}>
-            Description
-          </h3>
-          <div className="prose max-w-none">
-            <p style={{ color: 'var(--text-black)' }}>
-              {assignment.description}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Action buttons */}
-      {!isSubmissionId && assignment.status === 'OPEN' && (
-        <div className="mt-8 flex gap-4">
-          <button
-            onClick={handleSubmitClick}
-            className="lms-button-primary"
-          >
-            Submit Assignment
-          </button>
-          
+    <div className="min-h-screen p-6" style={{ backgroundColor: 'var(--card-background)' }}>
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
           <button
             onClick={() => router.back()}
-            className="lms-button-secondary"
-          >
-            ← Back
-          </button>
-        </div>
-      )}
-
-      {/* Submission specific actions */}
-      {isSubmissionId && (
-        <div className="mt-8 flex gap-4">
-          <button
-            onClick={() => router.back()}
-            className="lms-button-primary"
+            className="lms-button-secondary mb-4"
           >
             ← Back to Assignments
           </button>
-        </div>
-      )}
-
-      {/* Closed assignment notice */}
-      {!isSubmissionId && assignment.status === 'CLOSED' && (
-        <div className="mt-8">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-800 font-medium">
-              This assignment is closed and no longer accepting submissions.
-            </p>
-          </div>
           
-          <div className="mt-4">
-            <button
-              onClick={() => router.back()}
-              className="lms-button-secondary"
-            >
-              ← Back
-            </button>
-          </div>
+          <h1 className="text-3xl font-bold" style={{ color: 'var(--primary-dark)' }}>
+            {getAssignmentTitle(assignment)}
+          </h1>
         </div>
-      )}
+
+        {/* Assignment Details */}
+        <div className="lms-card mb-6">
+          <h2 className="text-xl font-semibold mb-4" style={{ color: 'var(--primary-dark)' }}>
+            Assignment Details
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <strong>Assignment ID:</strong> {assignment.id}
+            </div>
+            <div>
+              <strong>Unit:</strong> {assignment.unitCode}
+            </div>
+            <div>
+              <strong>Deadline:</strong> 
+              <span className={isOverdue ? 'text-red-600 ml-2' : 'ml-2'}>
+                {formatDate(deadline)}
+              </span>
+            </div>
+            <div>
+              <strong>Status:</strong> 
+              <span className={`ml-2 px-2 py-1 rounded text-sm ${
+                assignment.status === 'OPEN' 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-red-100 text-red-800'
+              }`}>
+                {assignment.status}
+              </span>
+            </div>
+          </div>
+
+          {assignment.description && (
+            <div className="mt-4">
+              <strong>Description:</strong>
+              <p className="mt-2 text-gray-700">{assignment.description}</p>
+            </div>
+          )}
+
+          {isOverdue && (
+            <div className="bg-red-50 border border-red-200 rounded p-3 mt-4">
+              <p className="text-red-700">
+                ⚠️ This assignment is overdue.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Submission Status */}
+        <div className="lms-card mb-6">
+          <h3 className="text-lg font-semibold mb-3" style={{ color: 'var(--primary-dark)' }}>
+            Your Submission
+          </h3>
+          
+          {submission ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <strong>Status:</strong> 
+                <span className={`ml-2 px-2 py-1 rounded text-sm ${
+                  submission.submissionStatus === 'SUBMITTED'
+                    ? 'bg-green-100 text-green-800'
+                    : submission.submissionStatus === 'DRAFT'
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {submission.submissionStatus}
+                </span>
+              </div>
+              <div>
+                <strong>File:</strong> {submission.submissionName || 'No file submitted'}
+              </div>
+              <div>
+                <strong>Submitted:</strong> 
+                {submission.submittedAt 
+                  ? formatDate(submission.submittedAt)
+                  : 'Not submitted yet'}
+              </div>
+              <div>
+                <strong>Grade:</strong> 
+                {submission.grade !== null 
+                  ? `${submission.grade}/100`
+                  : 'Not graded yet'}
+              </div>
+              {submission.comment && (
+                <div className="md:col-span-2">
+                  <strong>Teacher's Comment:</strong>
+                  <p className="mt-1 text-gray-700">{submission.comment}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-gray-500 mb-4">No submission found for this assignment.</p>
+              <button
+                onClick={() => router.push(`/students/assignments/${assignment.id}/submit`)}
+                className="lms-button-primary"
+                disabled={assignment.status === 'CLOSED'}
+              >
+                {assignment.status === 'CLOSED' ? 'Assignment Closed' : 'Submit Assignment'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-4 justify-center">
+          {submission && submission.submissionStatus !== 'SUBMITTED' && assignment.status === 'OPEN' && (
+            <button
+              onClick={() => router.push(`/students/assignments/${assignment.id}/submit`)}
+              className="lms-button-primary"
+            >
+              Complete Submission
+            </button>
+          )}
+          
+          {!submission && assignment.status === 'OPEN' && (
+            <button
+              onClick={() => router.push(`/students/assignments/${assignment.id}/submit`)}
+              className="lms-button-primary"
+            >
+              Start Assignment
+            </button>
+          )}
+          
+          <button
+            onClick={() => router.push('/students/assignments')}
+            className="lms-button-secondary"
+          >
+            Back to All Assignments
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,8 +1,8 @@
 'use client';
 import { FC } from 'react';
-import { useAuth } from '../context/authContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSignOutAlt } from '@fortawesome/free-solid-svg-icons';
+import { authManager } from '@/src/lib/auth';
 
 interface LogoutButtonProps {
   variant?: 'primary' | 'secondary' | 'text';
@@ -19,19 +19,25 @@ const LogoutButton: FC<LogoutButtonProps> = ({
   className = '',
   children 
 }) => {
-  const { setUser, setUserType } = useAuth();
-
-  const handleLogout = (): void => {
-    // Clear localStorage
-    localStorage.removeItem('user');
-    localStorage.removeItem('userType');
-    
-    // Update auth context
-    setUser(null);
-    setUserType(null);
-    
-    // Redirect to login page
-    window.location.href = '/login';
+  const handleLogout = async (): Promise<void> => {
+    try {
+      // Use auth manager to handle logout
+      await authManager.logout();
+      
+      // Redirect to login page
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Logout failed:', error);
+      
+      // Even if API logout fails, clear local data and redirect
+      // The authManager.logout() should handle this, but as a fallback:
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user_data');
+      localStorage.removeItem('user_type');
+      
+      window.location.href = '/login';
+    }
   };
 
   // Define base styles based on variant

@@ -1,47 +1,27 @@
 'use client';
 import { FC, useState, useEffect } from 'react';
-import { useAuth } from '../../context/authContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUser, faGraduationCap, faBookOpen, faCalendarAlt, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
+import { authManager, type User } from '@/src/lib/auth';
+import { apiClient } from '@/src/lib/api';
+import { Course, Unit } from '../../../types';
 import LogoutButton from '../../components/logOut';
 
-interface Student {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  courseCode: string;
-  year: number;
-  role: string;
-}
-
-interface Course {
-  code: string;
-  name: string;
-  id: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface Unit {
-  id: string;
-  code: string;
-  name: string;
-  description: string | null;
-  courseCode: string;
-  currentWeek: number;
-  progressPercentage?: number;
-  createdAt: string;
-  updatedAt: string;
-}
+// Remove local interfaces - use the ones from types/index.ts
 
 const StudentProfile: FC = () => {
-  const { user } = useAuth();
-  const [profile, setProfile] = useState<Student | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<User | null>(null);
   const [course, setCourse] = useState<Course | null>(null);
   const [units, setUnits] = useState<Unit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Initialize user from auth manager
+  useEffect(() => {
+    const authState = authManager.getAuthState();
+    setUser(authState.user);
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -53,65 +33,46 @@ const StudentProfile: FC = () => {
       try {
         setIsLoading(true);
         setError(null);
+
+        console.log('🔄 Fetching student profile data...');
+
+        // Fetch user profile from API
+        const profileResponse = await apiClient.getCurrentUser();
         
-        const token = localStorage.getItem('token');
-        if (!token) {
-          throw new Error('Authentication token not found');
+        if (profileResponse.success) {
+          console.log('👤 Profile data received:', profileResponse.data);
+          setProfile(profileResponse.data);
+        } else {
+          throw new Error('Failed to fetch profile data');
         }
 
-        const headers = {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        };
-
-        // Fetch user profile from new API
-        const profileResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://imajine-uni-api-production.up.railway.app'}/users/me`, {
-          headers
-        });
+        // Fetch academic data for course and units
+        const academicResponse = await apiClient.getAcademicData();
         
-        if (!profileResponse.ok) {
-          if (profileResponse.status === 401) {
-            throw new Error('Session expired. Please log in again.');
-          }
-          throw new Error('Failed to fetch profile');
-        }
-        
-        const profileData = await profileResponse.json();
-        setProfile(profileData.data);
-
-        // Fetch student's course info
-        if (profileData.data.courseCode) {
-          const courseResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://imajine-uni-api-production.up.railway.app'}/courses/${profileData.data.courseCode}`, {
-            headers
-          });
+        if (academicResponse.success) {
+          console.log('📚 Academic data received:', academicResponse.data);
           
-          if (courseResponse.ok) {
-            const courseData = await courseResponse.json();
-            setCourse(courseData.data);
+          const courses = academicResponse.data.courses || [];
+          const allUnits = academicResponse.data.units || [];
+          
+          // Find student's course
+          const studentCourse = courses.find((c: Course) => c.code === user.courseCode);
+          setCourse(studentCourse || null);
+          
+          if (studentCourse) {
+            // Filter units for this course
+            const courseUnits = allUnits.filter((unit: Unit) => 
+              unit.courseCode === studentCourse.code
+            );
+            setUnits(courseUnits);
           }
-        }
-
-        // Fetch student's units with progress
-        const unitsResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://imajine-uni-api-production.up.railway.app'}/students/${profileData.data.id}/units`, {
-          headers
-        });
-        
-        if (unitsResponse.ok) {
-          const unitsData = await unitsResponse.json();
-          setUnits(unitsData.data || []);
+        } else {
+          console.warn('Failed to fetch academic data');
         }
 
       } catch (err) {
-        console.error('Profile fetch error:', err);
+        console.error('❌ Error fetching profile data:', err);
         setError(err instanceof Error ? err.message : 'Failed to load profile data');
-        
-        // If authentication error, redirect to login
-        if (err instanceof Error && err.message.includes('Session expired')) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          localStorage.removeItem('userType');
-          window.location.href = '/login';
-        }
       } finally {
         setIsLoading(false);
       }
@@ -122,173 +83,182 @@ const StudentProfile: FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[var(--primary-red)]"></div>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--card-background)' }}>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{ borderColor: 'var(--primary-red)' }}></div>
+          <p style={{ color: 'var(--text-black)' }}>Loading profile...</p>
+        </div>
       </div>
     );
   }
 
-  if (error) {
+  if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <FontAwesomeIcon 
-            icon={faExclamationTriangle} 
-            className="text-6xl mb-4" 
-            style={{ color: 'var(--primary-red)' }} 
-          />
-          <h1 className="text-2xl font-semibold mb-4" style={{ color: 'var(--primary-red)' }}>
-            Error Loading Profile
-          </h1>
-          <p className="text-lg text-gray-600 mb-6">{error}</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--card-background)' }}>
+        <div className="text-center">
+          <FontAwesomeIcon icon={faExclamationTriangle} className="text-6xl mb-4 text-yellow-500" />
+          <p className="text-xl mb-4" style={{ color: 'var(--text-black)' }}>Please log in to view your profile.</p>
           <button
-            onClick={() => window.location.reload()}
-            className="bg-[var(--primary-red)] text-white px-6 py-3 rounded-lg hover:opacity-90 transition-opacity"
+            onClick={() => window.location.href = '/login'}
+            className="lms-button-primary"
           >
-            Retry
+            Go to Login
           </button>
         </div>
       </div>
     );
   }
 
-  if (!profile) {
+  if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-lg text-gray-600">Please log in to view your profile.</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--card-background)' }}>
+        <div className="text-center">
+          <FontAwesomeIcon icon={faExclamationTriangle} className="text-6xl mb-4 text-red-500" />
+          <p className="text-xl mb-4" style={{ color: 'var(--text-black)' }}>Error loading profile</p>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="lms-button-primary"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
 
+  const student = profile || user;
+
   return (
-    <div className="max-w-6xl mx-auto px-6 py-8">
-      {/* Header with Logout */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-4xl font-bold mb-2" style={{ color: 'var(--text-black)' }}>
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--card-background)' }}>
+      <div className="max-w-4xl mx-auto p-6 space-y-6">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--primary-dark)' }}>
             Student Profile
           </h1>
-          <p className="text-lg text-gray-600">
-            Welcome back, {profile.firstName}!
-          </p>
+          <p className="text-gray-600">Welcome to your academic dashboard</p>
         </div>
-        <LogoutButton />
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Profile Information */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="text-center mb-6">
-              <div 
-                className="w-24 h-24 mx-auto rounded-full flex items-center justify-center text-white text-3xl font-bold mb-4"
-                style={{ backgroundColor: 'var(--primary-red)' }}
-              >
-                <FontAwesomeIcon icon={faUser} />
-              </div>
-              <h2 className="text-2xl font-semibold" style={{ color: 'var(--text-black)' }}>
-                {profile.firstName} {profile.lastName}
+        <div className="lms-card">
+          <div className="flex items-center mb-6">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mr-6" style={{ backgroundColor: 'var(--primary-red)' }}>
+              <FontAwesomeIcon icon={faUser} className="text-2xl text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold" style={{ color: 'var(--text-black)' }}>
+                {student.firstName} {student.lastName || ''}
               </h2>
-              <p className="text-gray-600">{profile.email}</p>
+              <p className="text-gray-600">{student.email}</p>
+              <p className="text-sm text-gray-500">Student ID: {student.id}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h3 className="font-semibold mb-2" style={{ color: 'var(--primary-dark)' }}>
+                <FontAwesomeIcon icon={faGraduationCap} className="mr-2" />
+                Course Information
+              </h3>
+              {course ? (
+                <div>
+                  <p><strong>Course:</strong> {course.name}</p>
+                  <p><strong>Course Code:</strong> {course.code}</p>
+                  {student.year && <p><strong>Year:</strong> {student.year}</p>}
+                </div>
+              ) : (
+                <p className="text-gray-500">Course information not available</p>
+              )}
             </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center">
-                <FontAwesomeIcon icon={faGraduationCap} className="text-gray-500 mr-3" />
-                <div>
-                  <p className="text-sm text-gray-500">Student ID</p>
-                  <p className="font-medium">{profile.id}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center">
-                <FontAwesomeIcon icon={faCalendarAlt} className="text-gray-500 mr-3" />
-                <div>
-                  <p className="text-sm text-gray-500">Academic Year</p>
-                  <p className="font-medium">Year {profile.year}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center">
-                <FontAwesomeIcon icon={faBookOpen} className="text-gray-500 mr-3" />
-                <div>
-                  <p className="text-sm text-gray-500">Course</p>
-                  <p className="font-medium">
-                    {course ? `${course.name} (${course.code})` : profile.courseCode}
-                  </p>
-                </div>
-              </div>
+            <div>
+              <h3 className="font-semibold mb-2" style={{ color: 'var(--primary-dark)' }}>
+                <FontAwesomeIcon icon={faCalendarAlt} className="mr-2" />
+                Account Details
+              </h3>
+              <p><strong>Role:</strong> {student.role || 'Student'}</p>
+              <p><strong>Member since:</strong> {new Date(student.createdAt || '').toLocaleDateString() || 'Unknown'}</p>
             </div>
           </div>
         </div>
 
-        {/* Course Units */}
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-2xl font-semibold mb-6" style={{ color: 'var(--text-black)' }}>
-              Your Units
-            </h3>
-
-            {units.length === 0 ? (
-              <div className="text-center py-8">
-                <FontAwesomeIcon 
-                  icon={faBookOpen} 
-                  className="text-6xl text-gray-300 mb-4" 
-                />
-                <p className="text-lg text-gray-500 mb-2">No units enrolled</p>
-                <p className="text-gray-400">Contact your coordinator for assistance</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {units.map((unit) => (
-                  <div
-                    key={unit.code}
-                    className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => window.location.href = `/students/units/${unit.code}`}
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h4 className="font-semibold text-lg" style={{ color: 'var(--text-black)' }}>
-                          {unit.name}
-                        </h4>
-                        <p className="text-sm text-gray-500">{unit.code}</p>
-                      </div>
-                      <span className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded">
-                        Week {unit.currentWeek}
+        {/* Enrolled Units */}
+        <div className="lms-card">
+          <h3 className="text-xl font-semibold mb-4" style={{ color: 'var(--primary-dark)' }}>
+            <FontAwesomeIcon icon={faBookOpen} className="mr-2" />
+            Enrolled Units ({units.length})
+          </h3>
+          
+          {units.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {units.map((unit) => (
+                <div 
+                  key={unit.id} 
+                  className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+                >
+                  <h4 className="font-semibold mb-2" style={{ color: 'var(--primary-dark)' }}>
+                    {unit.name}
+                  </h4>
+                  <p className="text-sm text-gray-600 mb-2">{unit.code}</p>
+                  {unit.description && (
+                    <p className="text-sm text-gray-500 mb-2">{unit.description}</p>
+                  )}
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500">
+                      Week: {unit.currentWeek || 1}
+                    </span>
+                    {unit.progressPercentage !== undefined && (
+                      <span className="text-green-600 font-medium">
+                        {unit.progressPercentage}% Complete
                       </span>
-                    </div>
-
-                    {unit.description && (
-                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                        {unit.description}
-                      </p>
                     )}
-
-                    {/* Progress Bar */}
-                    {typeof unit.progressPercentage === 'number' && (
-                      <div className="mb-3">
-                        <div className="flex justify-between text-xs text-gray-500 mb-1">
-                          <span>Progress</span>
-                          <span>{unit.progressPercentage}%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${unit.progressPercentage}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-500">View unit details</span>
-                      <span className="text-blue-600">→</span>
-                    </div>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <FontAwesomeIcon icon={faBookOpen} className="text-4xl text-gray-400 mb-4" />
+              <p className="text-gray-500">No units enrolled yet</p>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="lms-card text-center">
+            <div className="text-2xl font-bold mb-2" style={{ color: 'var(--primary-dark)' }}>
+              {units.length}
+            </div>
+            <div className="text-sm text-gray-600">Enrolled Units</div>
           </div>
+          
+          <div className="lms-card text-center">
+            <div className="text-2xl font-bold mb-2" style={{ color: 'var(--primary-dark)' }}>
+              {student.year || 'N/A'}
+            </div>
+            <div className="text-sm text-gray-600">Academic Year</div>
+          </div>
+          
+          <div className="lms-card text-center">
+            <div className="text-2xl font-bold mb-2" style={{ color: 'var(--primary-dark)' }}>
+              {course?.code || 'N/A'}
+            </div>
+            <div className="text-sm text-gray-600">Course Code</div>
+          </div>
+          
+          <div className="lms-card text-center">
+            <div className="text-2xl font-bold mb-2" style={{ color: 'var(--primary-dark)' }}>
+              ACTIVE
+            </div>
+            <div className="text-sm text-gray-600">Status</div>
+          </div>
+        </div>
+
+        {/* Logout Button */}
+        <div className="text-center mt-8">
+          <LogoutButton size="lg" />
         </div>
       </div>
     </div>
