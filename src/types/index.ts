@@ -1,19 +1,17 @@
-// Updated Assignment interface to include missing properties
+
 export interface Assignment {
   id: string;
   name: string;
-  title?: string;          // Alternative name field
-  description?: string;    // Added description field
+  title?: string;          
+  description?: string;   
   unitCode: string;
   deadline: string;
-  dueDate?: string;        // Alternative deadline field
+  dueDate?: string;      
   publishedAt: string;
   status: 'OPEN' | 'CLOSED';
   createdAt: string;
   updatedAt: string;
 }
-
-// Rest of your existing types remain the same...
 export interface Student {
   id: string;
   firstName: string;

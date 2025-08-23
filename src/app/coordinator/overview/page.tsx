@@ -199,9 +199,6 @@ export default function CoordinatorOverview() {
         >
           {isLoading ? 'Refreshing...' : 'Refresh Data'}
         </button>
-        <p className="text-sm text-gray-500 mt-2">
-          Data is fetched from the backend analytics API
-        </p>
       </div>
     </div>
   );

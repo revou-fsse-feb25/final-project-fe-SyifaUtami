@@ -1,5 +1,4 @@
-// lib/apiClient.ts - Updated API client for new backend
-
+// lib/api.ts - Fixed API client
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://imajine-uni-api-production.up.railway.app';
 
 interface ApiResponse<T = any> {
@@ -11,10 +10,12 @@ interface ApiResponse<T = any> {
 }
 
 interface LoginResponse {
+  success: boolean;
   access_token: string;
   refresh_token: string;
   user: any;
   userType: 'student' | 'coordinator';
+  expires_in: number;
 }
 
 interface PaginatedResponse<T = any> {
@@ -46,8 +47,8 @@ class ApiClient {
       ...options,
     };
 
-    // Add auth token if available
-    const token = localStorage.getItem('token');
+    // FIXED: Look for the correct token key
+    const token = localStorage.getItem('access_token');
     if (token) {
       config.headers = {
         ...config.headers,
@@ -57,16 +58,30 @@ class ApiClient {
 
     try {
       const response = await fetch(url, config);
+      
+      // Log the response for debugging
+      console.log(`API ${options.method || 'GET'} ${endpoint}:`, response.status);
 
       if (!response.ok) {
+        // Try to get error message from response
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+          // Couldn't parse error response, use default message
+        }
+        
         if (response.status === 401) {
-          // Token expired or invalid
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          localStorage.removeItem('userType');
+          // Token expired or invalid - clear all auth data
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user_data');
+          localStorage.removeItem('user_type');
           throw new Error('Session expired. Please log in again.');
         }
-        throw new Error(`HTTP error! status: ${response.status}`);
+        
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -77,11 +92,20 @@ class ApiClient {
     }
   }
 
-  // Auth methods
-  async login(email: string, password: string, userType: 'student' | 'coordinator'): Promise<LoginResponse> {
+  // FIXED: Changed method signature to match what AuthManager sends
+  async login(credentials: { 
+    email: string; 
+    password: string; 
+    userType: 'student' | 'coordinator' 
+  }): Promise<LoginResponse> {
+    console.log('API Client: Making login request with:', { 
+      email: credentials.email, 
+      userType: credentials.userType 
+    });
+    
     return this.request<LoginResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password, userType }),
+      body: JSON.stringify(credentials),
     });
   }
 
@@ -91,9 +115,11 @@ class ApiClient {
     });
   }
 
-  async refreshToken(): Promise<LoginResponse> {
+  // FIXED: Add refresh token in body, not as URL parameter
+  async refreshToken(refreshToken: string): Promise<LoginResponse> {
     return this.request<LoginResponse>('/auth/refresh', {
       method: 'POST',
+      body: JSON.stringify({ refresh_token: refreshToken }),
     });
   }
 
@@ -116,35 +142,24 @@ class ApiClient {
     courseCode?: string; 
     search?: string;
   }): Promise<PaginatedResponse> {
-    const searchParams = new URLSearchParams();
-    if (params?.page) searchParams.append('page', params.page.toString());
-    if (params?.limit) searchParams.append('limit', params.limit.toString());
-    if (params?.courseCode) searchParams.append('courseCode', params.courseCode);
-    if (params?.search) searchParams.append('search', params.search);
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.courseCode) queryParams.append('courseCode', params.courseCode);
+    if (params?.search) queryParams.append('search', params.search);
     
-    const queryString = searchParams.toString();
-    return this.request<PaginatedResponse>(`/students${queryString ? `?${queryString}` : ''}`);
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `/students?${queryString}` : '/students';
+    
+    return this.request(endpoint);
   }
 
-  async getStudentsWithGrades(params?: { 
-    page?: number; 
-    limit?: number; 
-    courseCode?: string; 
-    search?: string;
-  }): Promise<PaginatedResponse> {
-    const searchParams = new URLSearchParams();
-    if (params?.page) searchParams.append('page', params.page.toString());
-    if (params?.limit) searchParams.append('limit', params.limit.toString());
-    if (params?.courseCode) searchParams.append('courseCode', params.courseCode);
-    if (params?.search) searchParams.append('search', params.search);
-    
-    const queryString = searchParams.toString();
-    return this.request<PaginatedResponse>(`/students/with-grades${queryString ? `?${queryString}` : ''}`);
+  async getStudentsWithGrades(): Promise<PaginatedResponse> {
+    return this.request('/students/with-grades');
   }
 
-  async getStudentStats(courseCode?: string): Promise<ApiResponse> {
-    const queryString = courseCode ? `?courseCode=${courseCode}` : '';
-    return this.request(`/students/stats${queryString}`);
+  async getStudentStats(): Promise<ApiResponse> {
+    return this.request('/students/stats');
   }
 
   async getStudent(id: string): Promise<ApiResponse> {
@@ -156,18 +171,8 @@ class ApiClient {
   }
 
   // Teachers methods
-  async getTeachers(params?: { 
-    page?: number; 
-    limit?: number; 
-    search?: string; 
-  }): Promise<PaginatedResponse> {
-    const searchParams = new URLSearchParams();
-    if (params?.page) searchParams.append('page', params.page.toString());
-    if (params?.limit) searchParams.append('limit', params.limit.toString());
-    if (params?.search) searchParams.append('search', params.search);
-    
-    const queryString = searchParams.toString();
-    return this.request<PaginatedResponse>(`/teachers${queryString ? `?${queryString}` : ''}`);
+  async getTeachers(): Promise<PaginatedResponse> {
+    return this.request('/teachers');
   }
 
   async getTeacherStats(): Promise<ApiResponse> {
@@ -178,26 +183,8 @@ class ApiClient {
     return this.request(`/teachers/${id}`);
   }
 
-  async createTeacher(teacherData: any): Promise<ApiResponse> {
-    return this.request('/teachers', {
-      method: 'POST',
-      body: JSON.stringify(teacherData),
-    });
-  }
-
-  async updateTeacher(id: string, teacherData: any): Promise<ApiResponse> {
-    return this.request(`/teachers/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(teacherData),
-    });
-  }
-
-  async deleteTeacher(id: string): Promise<ApiResponse> {
-    return this.request(`/teachers/${id}`, { method: 'DELETE' });
-  }
-
   // Courses methods
-  async getCourses(): Promise<ApiResponse> {
+  async getCourses(): Promise<PaginatedResponse> {
     return this.request('/courses');
   }
 
@@ -206,28 +193,29 @@ class ApiClient {
   }
 
   // Units methods
-  async getUnits(params?: { 
-    page?: number; 
-    limit?: number; 
-    courseCode?: string; 
+  async getUnits(params?: {
+    page?: number;
+    limit?: number;
+    courseCode?: string;
     search?: string;
   }): Promise<PaginatedResponse> {
-    const searchParams = new URLSearchParams();
-    if (params?.page) searchParams.append('page', params.page.toString());
-    if (params?.limit) searchParams.append('limit', params.limit.toString());
-    if (params?.courseCode) searchParams.append('courseCode', params.courseCode);
-    if (params?.search) searchParams.append('search', params.search);
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.courseCode) queryParams.append('courseCode', params.courseCode);
+    if (params?.search) queryParams.append('search', params.search);
     
-    const queryString = searchParams.toString();
-    return this.request<PaginatedResponse>(`/units${queryString ? `?${queryString}` : ''}`);
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `/units?${queryString}` : '/units';
+    
+    return this.request(endpoint);
   }
 
-  async getUnitStats(courseCode?: string): Promise<ApiResponse> {
-    const queryString = courseCode ? `?courseCode=${courseCode}` : '';
-    return this.request(`/units/stats${queryString}`);
+  async getUnitStats(): Promise<ApiResponse> {
+    return this.request('/units/stats');
   }
 
-  async getUnitsByCourse(courseCode: string): Promise<ApiResponse> {
+  async getUnitsByCourse(courseCode: string): Promise<PaginatedResponse> {
     return this.request(`/units/course/${courseCode}`);
   }
 
@@ -235,107 +223,31 @@ class ApiClient {
     return this.request(`/units/${code}`);
   }
 
-  async getUnitWithProgress(code: string): Promise<ApiResponse> {
+  async getUnitProgress(code: string): Promise<ApiResponse> {
     return this.request(`/units/${code}/progress`);
   }
 
-  async createUnit(unitData: any): Promise<ApiResponse> {
-    return this.request('/units', {
-      method: 'POST',
-      body: JSON.stringify(unitData),
-    });
-  }
-
-  async updateUnit(code: string, unitData: any): Promise<ApiResponse> {
-    return this.request(`/units/${code}`, {
-      method: 'PUT',
-      body: JSON.stringify(unitData),
-    });
-  }
-
-  async deleteUnit(code: string): Promise<ApiResponse> {
-    return this.request(`/units/${code}`, { method: 'DELETE' });
-  }
-
   // Assignments methods
-  async getAssignments(params?: { 
-    unitCode?: string; 
-    studentId?: string; 
+  async getAssignments(params?: {
+    unitCode?: string;
+    studentId?: string;
     status?: string;
     includeSubmissions?: boolean;
-  }): Promise<ApiResponse> {
-    const searchParams = new URLSearchParams();
-    if (params?.unitCode) searchParams.append('unitCode', params.unitCode);
-    if (params?.studentId) searchParams.append('studentId', params.studentId);
-    if (params?.status) searchParams.append('status', params.status);
-    if (params?.includeSubmissions) searchParams.append('includeSubmissions', 'true');
+  }): Promise<PaginatedResponse> {
+    const queryParams = new URLSearchParams();
+    if (params?.unitCode) queryParams.append('unitCode', params.unitCode);
+    if (params?.studentId) queryParams.append('studentId', params.studentId);
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.includeSubmissions) queryParams.append('includeSubmissions', 'true');
     
-    const queryString = searchParams.toString();
-    return this.request(`/assignments${queryString ? `?${queryString}` : ''}`);
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `/assignments?${queryString}` : '/assignments';
+    
+    return this.request(endpoint);
   }
 
   async getAssignment(id: string): Promise<ApiResponse> {
     return this.request(`/assignments/${id}`);
-  }
-
-  // Submissions methods
-  async getSubmission(submissionId: string): Promise<ApiResponse> {
-    return this.request(`/submissions/${submissionId}`);
-  }
-
-  async getStudentSubmissions(studentId: string): Promise<ApiResponse> {
-    return this.request(`/submissions/student/${studentId}`);
-  }
-
-  async updateSubmission(submissionId: string, submissionData: any): Promise<ApiResponse> {
-    return this.request(`/submissions/${submissionId}`, {
-      method: 'PUT',
-      body: JSON.stringify(submissionData),
-    });
-  }
-
-  async gradeSubmission(submissionId: string, gradeData: any): Promise<ApiResponse> {
-    return this.request(`/submissions/${submissionId}/grade`, {
-      method: 'PUT',
-      body: JSON.stringify(gradeData),
-    });
-  }
-
-  // Student Progress methods
-  async getStudentProgress(studentId: string): Promise<ApiResponse> {
-    return this.request(`/student-progress/student/${studentId}`);
-  }
-
-  async getStudentUnitProgress(studentId: string, unitCode: string): Promise<ApiResponse> {
-    return this.request(`/student-progress/student/${studentId}/unit/${unitCode}`);
-  }
-
-  async getUnitProgress(unitCode: string): Promise<ApiResponse> {
-    return this.request(`/student-progress/unit/${unitCode}`);
-  }
-
-  async getStudentProgressPercentage(studentId: string, unitCode: string): Promise<ApiResponse> {
-    return this.request(`/student-progress/student/${studentId}/unit/${unitCode}/percentage`);
-  }
-
-  async createStudentProgress(progressData: any): Promise<ApiResponse> {
-    return this.request('/student-progress', {
-      method: 'POST',
-      body: JSON.stringify(progressData),
-    });
-  }
-
-  async updateStudentProgress(studentId: string, unitCode: string, progressData: any): Promise<ApiResponse> {
-    return this.request(`/student-progress/student/${studentId}/unit/${unitCode}`, {
-      method: 'PUT',
-      body: JSON.stringify(progressData),
-    });
-  }
-
-  async initializeUnitProgress(unitCode: string): Promise<ApiResponse> {
-    return this.request(`/student-progress/unit/${unitCode}/initialize`, {
-      method: 'POST',
-    });
   }
 
   // Analytics methods
@@ -343,33 +255,36 @@ class ApiClient {
     return this.request('/analytics/overview');
   }
 
-  async getCourseAnalytics(courseCode: string, period?: 'week' | 'month' | 'quarter'): Promise<ApiResponse> {
-    const queryString = period ? `?period=${period}` : '';
-    return this.request(`/analytics/course/${courseCode}${queryString}`);
+  async getCourseAnalytics(courseCode: string): Promise<ApiResponse> {
+    return this.request(`/analytics/course/${courseCode}`);
   }
 
-  async getUnitAnalytics(unitCode: string, period?: 'week' | 'month' | 'quarter'): Promise<ApiResponse> {
-    const queryString = period ? `?period=${period}` : '';
-    return this.request(`/analytics/unit/${unitCode}${queryString}`);
+  async getUnitAnalytics(unitCode: string): Promise<ApiResponse> {
+    return this.request(`/analytics/unit/${unitCode}`);
   }
 
   async getStudentAnalytics(studentId: string): Promise<ApiResponse> {
     return this.request(`/analytics/student/${studentId}`);
   }
 
-  async getTrends(period?: 'week' | 'month' | 'quarter'): Promise<ApiResponse> {
-    const queryString = period ? `?period=${period}` : '';
-    return this.request(`/analytics/trends${queryString}`);
+  async getTrends(params?: { period?: string }): Promise<ApiResponse> {
+    const queryParams = new URLSearchParams();
+    if (params?.period) queryParams.append('period', params.period);
+    
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `/analytics/trends?${queryString}` : '/analytics/trends';
+    
+    return this.request(endpoint);
   }
 
-  // Academic Data methods (for backward compatibility if needed)
+  // Academic Data methods
   async getAcademicData(): Promise<ApiResponse> {
     return this.request('/academic-data');
   }
 }
 
-// Create and export the API client instance
+// Create and export singleton instance
 export const apiClient = new ApiClient(API_BASE_URL);
 
-// Export types for use in components
-export type { LoginResponse, PaginatedResponse, ApiResponse };
+// Export types for use in other files
+export type { LoginResponse, ApiResponse, PaginatedResponse };
