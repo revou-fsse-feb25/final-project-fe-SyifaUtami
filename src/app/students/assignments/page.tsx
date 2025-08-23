@@ -6,6 +6,22 @@ import { Assignment, StudentSubmission, AssignmentWithSubmission, FilterOption }
 import SearchBar from '../../components/searchBar';
 import AssignmentList from '../../components/assignmentList';
 
+// Safe date helper function
+const safeDate = (dateString?: string | null): Date => {
+  if (!dateString) return new Date(0); // Return epoch date for null/undefined
+  const date = new Date(dateString);
+  return isNaN(date.getTime()) ? new Date(0) : date;
+};
+
+// Safe property access helper
+const getAssignmentTitle = (assignment: Assignment): string => {
+  return assignment.name || assignment.title || 'Untitled Assignment';
+};
+
+const getAssignmentDeadline = (assignment: Assignment): string | null => {
+  return assignment.deadline || assignment.dueDate || null;
+};
+
 export default function StudentAssignmentsPage() {
   const { user } = useAuth();
   const [allAssignments, setAllAssignments] = useState<AssignmentWithSubmission[]>([]);
@@ -85,10 +101,13 @@ export default function StudentAssignmentsPage() {
 
     // Apply text search
     if (query.trim()) {
-      filtered = filtered.filter(item =>
-        item.assignment.title.toLowerCase().includes(query.toLowerCase()) ||
-        item.assignment.unitCode.toLowerCase().includes(query.toLowerCase())
-      );
+      filtered = filtered.filter(item => {
+        const title = getAssignmentTitle(item.assignment);
+        const unitCode = item.assignment.unitCode || '';
+        
+        return title.toLowerCase().includes(query.toLowerCase()) ||
+               unitCode.toLowerCase().includes(query.toLowerCase());
+      });
     }
 
     // Apply filters
@@ -96,16 +115,21 @@ export default function StudentAssignmentsPage() {
     if (filterValue !== 'all') {
       filtered = filtered.filter(item => {
         const now = new Date();
-        const dueDate = new Date(item.assignment.dueDate);
-        const isOverdue = dueDate < now && item.assignment.status === 'OPEN';
+        const deadline = getAssignmentDeadline(item.assignment);
+        const dueDate = safeDate(deadline);
+        const isOverdue = dueDate.getTime() > 0 && dueDate < now && item.assignment.status === 'OPEN';
         
         switch (filterValue) {
           case 'submitted':
             return item.submission?.submissionStatus === 'SUBMITTED';
           case 'not_submitted':
-            return !item.submission || item.submission.submissionStatus === 'UNSUBMITTED' || item.submission.submissionStatus === 'EMPTY';
+            return !item.submission || 
+                   item.submission.submissionStatus === 'UNSUBMITTED' || 
+                   item.submission.submissionStatus === 'EMPTY';
           case 'overdue':
-            return isOverdue && (!item.submission || item.submission.submissionStatus === 'UNSUBMITTED' || item.submission.submissionStatus === 'EMPTY');
+            return isOverdue && (!item.submission || 
+                   item.submission.submissionStatus === 'UNSUBMITTED' || 
+                   item.submission.submissionStatus === 'EMPTY');
           case 'graded':
             return item.submission && item.submission.grade !== null;
           default:
@@ -120,13 +144,25 @@ export default function StudentAssignmentsPage() {
   const upcomingAssignments = useMemo(() => {
     return filteredAssignments
       .filter(item => item.assignment.status === 'OPEN')
-      .sort((a, b) => new Date(a.assignment.dueDate).getTime() - new Date(b.assignment.dueDate).getTime());
+      .sort((a, b) => {
+        const aDeadline = getAssignmentDeadline(a.assignment);
+        const bDeadline = getAssignmentDeadline(b.assignment);
+        const aDate = safeDate(aDeadline);
+        const bDate = safeDate(bDeadline);
+        return aDate.getTime() - bDate.getTime();
+      });
   }, [filteredAssignments]);
 
   const pastAssignments = useMemo(() => {
     return filteredAssignments
       .filter(item => item.assignment.status === 'CLOSED')
-      .sort((a, b) => new Date(b.assignment.dueDate).getTime() - new Date(a.assignment.dueDate).getTime());
+      .sort((a, b) => {
+        const aDeadline = getAssignmentDeadline(a.assignment);
+        const bDeadline = getAssignmentDeadline(b.assignment);
+        const aDate = safeDate(aDeadline);
+        const bDate = safeDate(bDeadline);
+        return bDate.getTime() - aDate.getTime(); // Most recent first for past assignments
+      });
   }, [filteredAssignments]);
 
   if (isLoading) {

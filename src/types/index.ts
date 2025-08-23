@@ -1,8 +1,24 @@
+// Updated Assignment interface to include missing properties
+export interface Assignment {
+  id: string;
+  name: string;
+  title?: string;          // Alternative name field
+  description?: string;    // Added description field
+  unitCode: string;
+  deadline: string;
+  dueDate?: string;        // Alternative deadline field
+  publishedAt: string;
+  status: 'OPEN' | 'CLOSED';
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Rest of your existing types remain the same...
 export interface Student {
   id: string;
   firstName: string;
-  lastName: string | null;  // Backend can return null
-  email: string | null;     // Backend can return null  
+  lastName: string | null;
+  email: string | null;
   courseCode: string | null;
   year: number | null;
   enrollmentDate?: string;
@@ -48,22 +64,11 @@ export interface Unit {
   updatedAt: string;
 }
 
-export interface Assignment {
-  id: string;
-  name: string;           
-  unitCode: string;
-  deadline: string;       
-  publishedAt: string;
-  status: 'OPEN' | 'CLOSED';  // Backend enum values
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface StudentProgress {
   id?: string;
   studentId: string;
   unitCode: string;
-  week1Material: 'DONE' | 'NOT_DONE';  
+  week1Material: 'DONE' | 'NOT_DONE';
   week2Material: 'DONE' | 'NOT_DONE';
   week3Material: 'DONE' | 'NOT_DONE';
   week4Material: 'DONE' | 'NOT_DONE';
@@ -72,24 +77,22 @@ export interface StudentProgress {
   updatedAt?: string;
 }
 
-
 export interface StudentSubmission {
   id?: string;
-  submissionId: string;   
+  submissionId: string;
   studentId: string;
   assignmentId: string;
-  status?: 'OPEN' | 'CLOSED' | null; 
-  submissionStatus: 'EMPTY' | 'DRAFT' | 'SUBMITTED' | 'UNSUBMITTED'; 
+  status?: 'OPEN' | 'CLOSED' | null;
+  submissionStatus: 'EMPTY' | 'DRAFT' | 'SUBMITTED' | 'UNSUBMITTED';
   submissionName?: string | null;
   submittedAt?: string | null;
-  grade?: number | null;   // Float in backend
+  grade?: number | null;
   comment?: string | null;
   gradedBy?: string | null;
   gradedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
-
 
 export interface StudentAssignment extends StudentSubmission {
   assignmentName?: string;
@@ -205,8 +208,8 @@ export interface AcademicData {
   units: Unit[];
   assignments: Assignment[];
   teachers: Teacher[];
-  faculty?: Teacher[];      
-  coordinators?: Teacher[]; // For coordinator-specific data
+  faculty?: Teacher[];
+  coordinators?: Teacher[];
 }
 
 // Request/Update interfaces
@@ -244,8 +247,7 @@ export interface TrendData {
 }
 
 // Legacy interfaces for backward compatibility
-export interface Faculty extends Teacher {
-}
+export interface Faculty extends Teacher {}
 
 // Tab interface for UI components
 export interface TabItem {

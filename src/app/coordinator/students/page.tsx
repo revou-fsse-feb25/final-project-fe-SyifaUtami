@@ -4,15 +4,18 @@ import { useRouter } from 'next/navigation';
 import DataTable, { TableColumn } from '../../components/dataTable';
 import SearchBar from '../../components/searchBar';
 import StatCard from '../../components/statCard';
-import { FilterOption } from '../../../types';
-
-import { Student, StudentWithGrade, Course, FilterOption, ApiResponse, PaginatedResponse } from '../../../types';
+import { 
+  Student, 
+  StudentWithGrade, 
+  Course, 
+  FilterOption, 
+} from '../../../types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://imajine-uni-api-production.up.railway.app';
 
 export default function CoordinatorStudentsPage() {
   const [students, setStudents] = useState<StudentWithGrade[]>([]);
-  const [courses, setCourses] = useState<any[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,13 +25,20 @@ export default function CoordinatorStudentsPage() {
   
   const router = useRouter();
 
+  // Helper function to safely get course name
+  const getCourseName = useCallback((courseCode: string | null): string => {
+    if (!courseCode) return 'No Course';
+    const course = courses.find(c => c.code === courseCode);
+    return course ? course.name : courseCode;
+  }, [courses]);
+
   // Fetch data from Railway backend
   const fetchData = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       if (!token) {
         throw new Error('No authentication token found');
       }
@@ -44,6 +54,7 @@ export default function CoordinatorStudentsPage() {
 
       if (!studentsResponse.ok || !coursesResponse.ok) {
         if (studentsResponse.status === 401 || coursesResponse.status === 401) {
+          localStorage.removeItem('access_token');
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           localStorage.removeItem('userType');
@@ -64,12 +75,20 @@ export default function CoordinatorStudentsPage() {
 
       // Calculate stats
       const totalStudents = studentsList?.length || 0;
-      const uniqueCourses = [...new Set((studentsList || []).map((s: Student) => s.courseCode))].length;
-      const avgGrade = studentsList?.length > 0 
-        ? Math.round(studentsList.reduce((sum: number, s: StudentWithGrade) => sum + (s.averageGrade || 0), 0) / studentsList.length)
+      const uniqueCourses = [...new Set((studentsList || []).map((s: Student) => s.courseCode).filter(Boolean))].length;
+      const gradesArray = (studentsList || [])
+        .map((s: StudentWithGrade) => s.averageGrade)
+        .filter((grade: number) => grade != null && grade > 0);
+      
+      const avgGrade = gradesArray.length > 0 
+        ? Math.round(gradesArray.reduce((sum: number, grade: number) => sum + grade, 0) / gradesArray.length)
         : 0;
 
-      setStats({ total: totalStudents, coursesCount: uniqueCourses, avgGrade });
+      setStats({
+        total: totalStudents,
+        coursesCount: uniqueCourses,
+        avgGrade
+      });
 
     } catch (err) {
       console.error('Fetch error:', err);
@@ -83,72 +102,78 @@ export default function CoordinatorStudentsPage() {
     fetchData();
   }, []);
 
-  // Get course name helper
-  const getCourseName = useCallback((courseCode: string) => {
-    const course = courses.find(c => c.code === courseCode);
-    return course ? course.name : courseCode;
-  }, [courses]);
-
   // Filter and sort students
-  const filteredStudents = useMemo(() => {
-    let filtered = students.filter(student => {
-      // Text search
-      const searchTerms = searchQuery.toLowerCase().split(' ');
-      const searchableText = `${student.firstName} ${student.lastName} ${student.id} ${student.email}`.toLowerCase();
-      const matchesSearch = searchTerms.every(term => searchableText.includes(term));
+  const filteredAndSortedStudents = useMemo(() => {
+    let filtered = students;
 
-      // Filters
-      const matchesFilters = Object.entries(searchFilters).every(([key, value]) => {
-        if (!value || value === 'all') return true;
+    // Apply search filter
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(student => {
+        const fullName = `${student.firstName} ${student.lastName || ''}`.toLowerCase();
+        const email = (student.email || '').toLowerCase();
+        const courseCode = (student.courseCode || '').toLowerCase();
+        const query = searchQuery.toLowerCase();
         
+        return fullName.includes(query) || 
+               email.includes(query) || 
+               courseCode.includes(query);
+      });
+    }
+
+    // Apply filters
+    Object.entries(searchFilters).forEach(([key, value]) => {
+      if (value && value !== 'all') {
         switch (key) {
           case 'course':
-            return student.courseCode === value;
+            filtered = filtered.filter(student => student.courseCode === value);
+            break;
           case 'year':
-            return student.year.toString() === value;
+            filtered = filtered.filter(student => student.year?.toString() === value);
+            break;
           case 'performance':
-            if (value === 'high') return student.averageGrade >= 80;
-            if (value === 'medium') return student.averageGrade >= 60 && student.averageGrade < 80;
-            if (value === 'low') return student.averageGrade < 60;
-            return true;
-          default:
-            return true;
+            filtered = filtered.filter(student => {
+              const grade = student.averageGrade || 0;
+              switch (value) {
+                case 'excellent': return grade >= 90;
+                case 'good': return grade >= 70 && grade < 90;
+                case 'average': return grade >= 50 && grade < 70;
+                case 'poor': return grade < 50;
+                default: return true;
+              }
+            });
+            break;
         }
-      });
-
-      return matchesSearch && matchesFilters;
-    });
-
-    // Sort students
-    filtered.sort((a, b) => {
-      switch (sortOrder) {
-        case 'highest':
-          return b.averageGrade - a.averageGrade;
-        case 'lowest':
-          return a.averageGrade - b.averageGrade;
-        case 'name':
-        default:
-          return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
       }
     });
 
-    return filtered;
+    // Apply sorting
+    switch (sortOrder) {
+      case 'highest':
+        return filtered.sort((a, b) => (b.averageGrade || 0) - (a.averageGrade || 0));
+      case 'lowest':
+        return filtered.sort((a, b) => (a.averageGrade || 0) - (b.averageGrade || 0));
+      case 'name':
+      default:
+        return filtered.sort((a, b) => {
+          const nameA = `${a.firstName} ${a.lastName || ''}`.toLowerCase();
+          const nameB = `${b.firstName} ${b.lastName || ''}`.toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+    }
   }, [students, searchQuery, searchFilters, sortOrder]);
 
-  // Handle search
-  const handleSearch = useCallback((query: string, filters: Record<string, string>) => {
-    setSearchQuery(query);
-    setSearchFilters(filters);
-  }, []);
-
-  // Filter options for SearchBar
-  const filterOptions: FilterOption[] = useMemo(() => [
+  // Filter options for search bar
+  const filterOptions: FilterOption[] = [
     {
       key: 'course',
       label: 'Course',
       options: [
         { value: 'all', label: 'All Courses' },
-        ...courses.map(course => ({ value: course.code, label: `${course.name} (${course.code})` }))
+        ...Array.from(new Set(students.map(s => s.courseCode).filter(Boolean)))
+          .map(courseCode => ({
+            value: courseCode as string,
+            label: getCourseName(courseCode as string)
+          }))
       ]
     },
     {
@@ -156,10 +181,8 @@ export default function CoordinatorStudentsPage() {
       label: 'Year',
       options: [
         { value: 'all', label: 'All Years' },
-        { value: '1', label: 'Year 1' },
-        { value: '2', label: 'Year 2' },
-        { value: '3', label: 'Year 3' },
-        { value: '4', label: 'Year 4' }
+        ...Array.from(new Set(students.map(s => s.year).filter(Boolean)))
+          .map(year => ({ value: year!.toString(), label: `Year ${year}` }))
       ]
     },
     {
@@ -167,50 +190,55 @@ export default function CoordinatorStudentsPage() {
       label: 'Performance',
       options: [
         { value: 'all', label: 'All Performance' },
-        { value: 'high', label: 'High (≥80%)' },
-        { value: 'medium', label: 'Medium (60-79%)' },
-        { value: 'low', label: 'Low (<60%)' }
+        { value: 'excellent', label: 'Excellent (90%+)' },
+        { value: 'good', label: 'Good (70-89%)' },
+        { value: 'average', label: 'Average (50-69%)' },
+        { value: 'poor', label: 'Poor (<50%)' }
       ]
     }
-  ], [courses]);
+  ];
 
-  // Student table columns
-  const studentColumns: TableColumn<StudentWithGrade>[] = useMemo(() => [
+  const handleSearch = (query: string, filters: Record<string, string>) => {
+    setSearchQuery(query);
+    setSearchFilters(filters);
+  };
+
+  // Table columns
+  const columns: TableColumn<StudentWithGrade>[] = [
     {
       key: 'name',
-      label: 'Student Name',
-      render: (student) => (
+      label: 'Name',
+      render: (student: StudentWithGrade) => (
         <div>
-          <div className="font-medium">{student.firstName} {student.lastName}</div>
-          <div className="text-sm text-gray-600">{student.id}</div>
+          <div className="font-medium" style={{ color: 'var(--text-black)' }}>
+            {student.firstName} {student.lastName || ''}
+          </div>
+          <div className="text-sm text-gray-500">{student.email || 'No email'}</div>
         </div>
-      )
-    },
-    {
-      key: 'email',
-      label: 'Email',
-      render: (student) => (
-        <div className="text-sm">{student.email}</div>
       )
     },
     {
       key: 'course',
       label: 'Course',
-      render: (student) => (
+      render: (student: StudentWithGrade) => (
         <div>
-          <div className="font-medium">{getCourseName(student.courseCode)}</div>
-          <div className="text-sm text-gray-600">Year {student.year}</div>
+          <div className="font-medium" style={{ color: 'var(--text-black)' }}>
+            {getCourseName(student.courseCode)}
+          </div>
+          <div className="text-sm text-gray-500">
+            Year {student.year || 'N/A'}
+          </div>
         </div>
       )
     },
     {
-      key: 'grade',
-      label: 'Average Grade',
-      render: (student) => (
+      key: 'performance',
+      label: 'Performance',
+      render: (student: StudentWithGrade) => (
         <div className="text-center">
           <div className={`text-lg font-bold ${
-            student.averageGrade >= 80 ? 'text-green-600' : 
-            student.averageGrade >= 60 ? 'text-yellow-600' : 'text-red-600'
+            (student.averageGrade || 0) >= 80 ? 'text-green-600' : 
+            (student.averageGrade || 0) >= 60 ? 'text-yellow-600' : 'text-red-600'
           }`}>
             {student.averageGrade ? `${student.averageGrade}%` : 'No grades'}
           </div>
@@ -220,7 +248,7 @@ export default function CoordinatorStudentsPage() {
     {
       key: 'submissions',
       label: 'Submissions',
-      render: (student) => (
+      render: (student: StudentWithGrade) => (
         <div className="text-center">
           <div className="text-sm font-medium">
             {student.submittedCount || 0}/{student.totalSubmissions || 0}
@@ -236,7 +264,7 @@ export default function CoordinatorStudentsPage() {
     {
       key: 'actions',
       label: 'Actions',
-      render: (student) => (
+      render: (student: StudentWithGrade) => (
         <button 
           onClick={(e) => {
             e.stopPropagation();
@@ -249,7 +277,7 @@ export default function CoordinatorStudentsPage() {
         </button>
       )
     }
-  ], [getCourseName, router]);
+  ];
 
   if (error) {
     return (
@@ -295,49 +323,50 @@ export default function CoordinatorStudentsPage() {
         />
         <StatCard
           title="Average Grade"
-          value={stats.avgGrade ? `${stats.avgGrade}%` : '0%'}
+          value={stats.avgGrade ? `${stats.avgGrade}%` : 'N/A'}
           icon="grade"
           isLoading={isLoading}
           subtitle="Overall performance"
         />
       </div>
 
-      {/* Search Bar */}
-      <SearchBar
-        placeholder="Search by name, student ID, or email..."
-        onSearch={handleSearch}
-        filters={filterOptions}
-        showFilters={true}
-        className="mb-8"
-      />
+      {/* Search and Filters */}
+      <div className="mb-6">
+        <SearchBar
+          onSearch={handleSearch}
+          placeholder="Search students by name, email, or course..."
+          filters={filterOptions}
+          showFilters={true}
+        />
+      </div>
 
-      {/* Results Summary */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="text-sm text-gray-600">
-          Showing {filteredStudents.length} of {students.length} students
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-600">Sort by:</span>
+      {/* Sort Controls */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-4">
+          <span className="text-sm font-medium text-gray-700">Sort by:</span>
           <select
             value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value as any)}
-            className="border rounded px-2 py-1 text-sm"
+            onChange={(e) => setSortOrder(e.target.value as 'name' | 'highest' | 'lowest')}
+            className="px-3 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="name">Name</option>
+            <option value="name">Name (A-Z)</option>
             <option value="highest">Highest Grade</option>
             <option value="lowest">Lowest Grade</option>
           </select>
+        </div>
+        
+        <div className="text-sm text-gray-600">
+          Showing {filteredAndSortedStudents.length} of {students.length} students
         </div>
       </div>
 
       {/* Students Table */}
       <DataTable
-        data={filteredStudents}
-        columns={studentColumns}
+        data={filteredAndSortedStudents}
+        columns={columns}
         isLoading={isLoading}
-        emptyMessage="No students found. Try adjusting your search or filters."
-        onRowClick={(student) => router.push(`/coordinator/students/${student.id}`)}
-        loadingRows={6}
+        emptyMessage="No students found matching your search criteria."
+        onRowClick={(student: StudentWithGrade) => router.push(`/coordinator/students/${student.id}`)}
       />
     </div>
   );
