@@ -58,12 +58,7 @@ export default function LoginPage() {
     }
   };
 
-  // Quick login function for demo credentials
-  const quickLogin = (demoEmail: string, demoPassword: string, demoUserType: 'student' | 'coordinator') => {
-    setEmail(demoEmail);
-    setPassword(demoPassword);
-    setUserType(demoUserType);
-  };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--card-background)' }}>
@@ -170,45 +165,7 @@ export default function LoginPage() {
           </div>
         </form>
 
-        {/* Demo Credentials with Quick Login */}
-        <div className="mt-4">
-          <div className="text-center mb-3">
-            <p className="text-xs font-semibold text-gray-600">Demo Credentials (Click to auto-fill):</p>
-          </div>
-          
-          <div className="space-y-2">
-            {/* Student Credentials */}
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => quickLogin('TomHolland@imajine.ac.id', 'student123', 'student')}
-                className="text-xs p-2 rounded border border-gray-300 hover:bg-gray-50 text-left"
-              >
-                <div className="font-semibold text-blue-600">Student 1</div>
-                <div className="text-gray-500">TomHolland@imajine.ac.id</div>
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => quickLogin('FlorencePugh@imajine.ac.id', 'student123', 'student')}
-                className="text-xs p-2 rounded border border-gray-300 hover:bg-gray-50 text-left"
-              >
-                <div className="font-semibold text-blue-600">Student 2</div>
-                <div className="text-gray-500">FlorencePugh@imajine.ac.id</div>
-              </button>
-            </div>
-
-            {/* Coordinator Credentials */}
-            <button
-              type="button"
-              onClick={() => quickLogin('coordinator@imajine.ac.id', 'coordinator123', 'coordinator')}
-              className="w-full text-xs p-2 rounded border border-gray-300 hover:bg-gray-50 text-left"
-            >
-              <div className="font-semibold text-green-600">Coordinator</div>
-              <div className="text-gray-500">coordinator@imajine.ac.id / coordinator123</div>
-            </button>
-          </div>
-        </div>
+ 
       </div>
     </div>
   );

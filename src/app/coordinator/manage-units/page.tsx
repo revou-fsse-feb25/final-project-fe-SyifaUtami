@@ -8,12 +8,14 @@ import CourseUnitModals from '../../components/courseUnitModals';
 import StudentProgressComponent from '../../components/studentProgress';
 import { Course, Unit, StudentProgress, Assignment, Teacher } from '../../../types';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://imajine-uni-api-production.up.railway.app';
+
 interface ManageUnitsData {
   courses: Course[];
   units: Unit[];
   allStudentProgress: StudentProgress[];
   assignments: Assignment[];
-  teachers: Teacher[]; // Add teachers
+  teachers: Teacher[];
 }
 
 type ModalType = 'addCourse' | 'addUnit' | 'deleteCourse' | 'deleteUnit' | 'none';
@@ -21,7 +23,7 @@ type ModalType = 'addCourse' | 'addUnit' | 'deleteCourse' | 'deleteUnit' | 'none
 export default function ManageUnitsPage() {
   const [data, setData] = useState<ManageUnitsData | null>(null);
   const [coordinators, setCoordinators] = useState<any[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]); // Add teachers state
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -41,39 +43,86 @@ export default function ManageUnitsPage() {
     setTimeout(() => setSuccessMessage(''), 3000);
   };
 
-  // Fetch all data needed for the page
+  // Get auth token
+  const getAuthToken = (): string | null => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('token');
+    }
+    return null;
+  };
+
+  // API request helper with Railway integration
+  const makeAuthenticatedRequest = async (endpoint: string, options: RequestInit = {}) => {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('No authentication token found. Please log in.');
+    }
+
+    const config: RequestInit = {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...options.headers,
+      },
+      ...options,
+    };
+
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        // Token expired
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('userType');
+        throw new Error('Session expired. Please log in again.');
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || `Request failed with status ${response.status}`);
+    }
+
+    return response.json();
+  };
+
+  // Fetch all data from Railway API
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
         setError(null);
 
-        // Fetch academic data (courses, units, etc.)
-        const [academicResponse, studentsResponse] = await Promise.all([
-          fetch('/api/academic-data'),
-          fetch('/api/students?includeData=true')
+        // Fetch data from Railway API endpoints
+        const [coursesData, unitsData, teachersData, studentsData] = await Promise.all([
+          makeAuthenticatedRequest('/courses'),
+          makeAuthenticatedRequest('/units'),
+          makeAuthenticatedRequest('/teachers'),
+          makeAuthenticatedRequest('/students')
         ]);
 
-        if (!academicResponse.ok || !studentsResponse.ok) {
-          throw new Error('Failed to fetch data');
-        }
-
-        const academicData = await academicResponse.json();
-        const studentsData = await studentsResponse.json();
+        // Handle different response formats from Railway API
+        const courses = coursesData.success ? coursesData.data : coursesData;
+        const units = unitsData.success ? unitsData.data : unitsData;
+        const teachersResult = teachersData.success ? teachersData.data : teachersData;
+        const students = studentsData.success ? studentsData.data : studentsData;
 
         setData({
-          courses: academicData.courses || [],
-          units: academicData.units || [],
-          allStudentProgress: studentsData.progress || [],
-          assignments: academicData.assignments || [],
-          teachers: academicData.teachers || [] // Add teachers to data
+          courses: courses || [],
+          units: units || [],
+          allStudentProgress: [], // Will be populated if needed
+          assignments: [], // Will be populated if needed
+          teachers: teachersResult || []
         });
 
-        // Set coordinators and teachers for the dropdowns
-        setCoordinators(academicData.faculty || []);
-        setTeachers(academicData.teachers || []); // Set teachers state
+        // Set coordinators (filter from teachers or fetch separately)
+        const coordinatorsList = Array.isArray(teachersResult) 
+          ? teachersResult.filter((t: any) => t.role === 'COORDINATOR' || t.title === 'Coordinator')
+          : [];
+        
+        setCoordinators(coordinatorsList);
+        setTeachers(teachersResult || []);
 
       } catch (err) {
+        console.error('Failed to fetch data:', err);
         setError(err instanceof Error ? err.message : 'Failed to load data');
       } finally {
         setIsLoading(false);
@@ -131,93 +180,133 @@ export default function ManageUnitsPage() {
       };
     });
     resetDeleteMode();
+    window.dispatchEvent(new CustomEvent('courseUpdated'));
+  };
+
+  // Unit card actions
+  const handleEditUnit = (unit: Unit) => {
+    window.location.href = `/coordinator/manage-units/edit-units/${unit.code}`;
+  };
+
+  const handleDeleteUnit = (unit: Unit) => {
+    setUnitToDelete(unit);
+    setModalType('deleteUnit');
+  };
+
+  // Course actions
+  const handleAddUnit = (course: Course) => {
+    setSelectedCourse(course);
+    setModalType('addUnit');
+  };
+
+  const handleDeleteCourse = (course: Course) => {
+    setCourseToDelete(course);
+    setModalType('deleteCourse');
   };
 
   // Reset delete mode
   const resetDeleteMode = () => {
     setDeleteMode('none');
+    setCourseToDelete(null);
+    setUnitToDelete(null);
   };
 
-  // Get units for a specific course with progress data
-  const getUnitsForCourse = (courseCode: string) => {
-    if (!data) return [];
-    
-    return data.units
-      .filter(unit => unit.courseCode === courseCode)
-      .map(unit => {
-        const unitProgress = data.allStudentProgress.filter(progress => 
-          progress.unitCode === unit.code
-        );
-        
-        const unitAssignments = data.assignments.filter(assignment => 
-          assignment.unitCode === unit.code
-        );
+  // Toggle delete mode for courses
+  const toggleCourseDeleteMode = () => {
+    setDeleteMode(deleteMode === 'courses' ? 'none' : 'courses');
+    setUnitToDelete(null);
+  };
 
-        return {
-          unit,
-          progress: unitProgress,
-          assignments: unitAssignments
-        };
-      });
+  // Toggle delete mode for units
+  const toggleUnitDeleteMode = () => {
+    setDeleteMode(deleteMode === 'units' ? 'none' : 'units');
+    setCourseToDelete(null);
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[var(--primary-red)]"></div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[var(--primary-red)] mx-auto mb-4"></div>
+          <p className="text-lg text-gray-600">Loading manage units data...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-semibold mb-4" style={{ color: 'var(--primary-red)' }}>Error</h1>
-          <p className="text-lg text-gray-600">{error}</p>
+          <p className="text-red-600 text-xl mb-4">❌ {error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="lms-button-primary"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );
   }
 
+  if (!data) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600 text-xl">No data available</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Group units by course
+  const coursesByCode = data.courses.reduce((acc, course) => {
+    acc[course.code] = course;
+    return acc;
+  }, {} as Record<string, Course>);
+
+  const unitsByCourse = data.units.reduce((acc, unit) => {
+    if (!acc[unit.courseCode]) {
+      acc[unit.courseCode] = [];
+    }
+    acc[unit.courseCode].push(unit);
+    return acc;
+  }, {} as Record<string, Unit[]>);
+
   return (
-    <div className="max-w-7xl mx-auto px-6 py-8">
-      {/* Page Header */}
-      <div className="mb-8">
-        <div className="flex justify-between items-start">
+    <div className="min-h-screen bg-gray-50 p-6">
+      {/* Header */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-4xl font-bold mb-2" style={{ color: 'var(--text-black)' }}>
-              Manage Courses and Units
+            <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--text-black)' }}>
+              Manage Units & Courses
             </h1>
             <p className="text-lg text-gray-600">
-              Add, edit, and manage courses and their units
+              Create, edit, and organize your courses and units
             </p>
           </div>
-
-          {/* Action Controls */}
+          
           <div className="flex gap-3">
-            <button 
-              onClick={() => setDeleteMode(deleteMode === 'units' ? 'none' : 'units')}
-              className={`px-4 py-2 rounded transition-colors ${
-                deleteMode === 'units' 
-                  ? 'text-white' 
-                  : 'text-white hover:bg-opacity-90'
+            <button
+              onClick={toggleCourseDeleteMode}
+              className={`lms-button-secondary ${
+                deleteMode === 'courses' ? 'bg-red-100 text-red-700 border-red-300' : ''
               }`}
-              style={{ backgroundColor: 'var(--primary-red)' }}
             >
-              {deleteMode === 'units' ? 'Cancel Delete Units' : 'Delete Units'}
+              <FontAwesomeIcon icon={faTimes} className="mr-2" />
+              {deleteMode === 'courses' ? 'Cancel Delete' : 'Delete Courses'}
             </button>
             
-            <button 
-              onClick={() => setDeleteMode(deleteMode === 'courses' ? 'none' : 'courses')}
-              className={`px-4 py-2 rounded transition-colors ${
-                deleteMode === 'courses' 
-                  ? 'text-white' 
-                  : 'text-white hover:bg-opacity-90'
+            <button
+              onClick={toggleUnitDeleteMode}
+              className={`lms-button-secondary ${
+                deleteMode === 'units' ? 'bg-red-100 text-red-700 border-red-300' : ''
               }`}
-              style={{ backgroundColor: 'var(--primary-red)' }}
             >
-              {deleteMode === 'courses' ? 'Cancel Delete Courses' : 'Delete Courses'}
+              <FontAwesomeIcon icon={faTimes} className="mr-2" />
+              {deleteMode === 'units' ? 'Cancel Delete' : 'Delete Units'}
             </button>
           </div>
         </div>
@@ -230,115 +319,73 @@ export default function ManageUnitsPage() {
         )}
       </div>
 
-      {/* Courses and Units */}
+      {/* Course and Units Content */}
       <div className="space-y-8">
-        {data?.courses.map((course) => {
-          const courseUnits = getUnitsForCourse(course.code);
-          
+        {Object.keys(coursesByCode).map(courseCode => {
+          const course = coursesByCode[courseCode];
+          const courseUnits = unitsByCourse[courseCode] || [];
+
           return (
-            <div key={course.code} className="bg-gray-50 p-6 rounded-lg">
+            <div key={courseCode} className="bg-white rounded-lg shadow-md p-6">
               {/* Course Header */}
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center">
-                  <h2 className="text-2xl font-semibold" style={{ color: 'var(--text-black)' }}>
-                    {course.name} ({course.code})
-                  </h2>
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <h2 className="text-2xl font-semibold" style={{ color: 'var(--text-black)' }}>
+                      {course.name}
+                    </h2>
+                    <p className="text-gray-600">Course Code: {course.code}</p>
+                  </div>
                   
-                  {/* Delete Course X Button */}
                   {deleteMode === 'courses' && (
                     <button
-                      onClick={() => {
-                        setCourseToDelete(course);
-                        setModalType('deleteCourse');
-                      }}
-                      className="ml-3 w-8 h-8 bg-white rounded-full hover:bg-gray-100 transition-colors flex items-center justify-center"
-                      style={{ color: 'var(--primary-red)' }}
-                      title="Delete Course"
+                      onClick={() => handleDeleteCourse(course)}
+                      className="bg-red-100 text-red-700 px-3 py-1 rounded-lg hover:bg-red-200 transition-colors"
                     >
-                      <FontAwesomeIcon icon={faTimes} className="text-sm" />
+                      <FontAwesomeIcon icon={faTimes} />
                     </button>
                   )}
                 </div>
-                
-                <div className="flex items-center gap-3">
-                  <p className="text-gray-600">{courseUnits.length} units</p>
-                  <button 
-                    onClick={() => {
-                      setSelectedCourse(course);
-                      setModalType('addUnit');
-                    }}
-                    className="lms-button-primary"
-                  >
-                    <FontAwesomeIcon icon={faPlus} className="mr-2" />
-                    Add Unit
-                  </button>
+
+                <div className="flex gap-2">
+                  <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+                    <FontAwesomeIcon icon={faUsers} className="mr-1" />
+                    {courseUnits.length} units
+                  </span>
+                  
+                  {deleteMode === 'none' && (
+                    <button
+                      onClick={() => handleAddUnit(course)}
+                      className="lms-button-primary"
+                    >
+                      <FontAwesomeIcon icon={faPlus} className="mr-2" />
+                      Add Unit
+                    </button>
+                  )}
                 </div>
               </div>
 
               {/* Units Grid */}
               {courseUnits.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {courseUnits.map(({ unit, progress, assignments }) => (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {courseUnits.map(unit => (
                     <div key={unit.code} className="relative">
-                      {deleteMode === 'units' ? (
-                        // During delete mode, disable the link and show delete button
-                        <div className="relative">
-                          <div className="lms-card hover:shadow-lg transition-all duration-200 relative opacity-75 cursor-not-allowed">
-                            {/* Color Header */}
-                            <div 
-                              className="h-20 rounded-t-lg mb-4 flex items-center justify-center"
-                              style={{ backgroundColor: 'var(--primary-red)' }}
-                            >
-                              <FontAwesomeIcon icon={faUsers} className="text-white text-2xl" />
-                            </div>
-                            
-                            {/* Unit Info */}
-                            <div className="space-y-3">
-                              <div>
-                                <h3 className="text-lg font-semibold" style={{ color: 'var(--text-black)' }}>
-                                  {unit.name}
-                                </h3>
-                                <p className="text-sm text-gray-600">
-                                  {unit.code} • {progress.length} students
-                                </p>
-                              </div>
-                              
-                              {/* Progress Section */}
-                              <div className="text-center">
-                                <p className="text-sm font-medium text-gray-700 mb-1">Average Progress</p>
-                                <div className="text-xl font-bold" style={{ color: 'var(--primary-dark)' }}>
-                                  <StudentProgressComponent 
-                                    allProgressData={progress}
-                                    assignments={assignments}
-                                    mode="average"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {/* Delete Unit X Button */}
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setUnitToDelete(unit);
-                              setModalType('deleteUnit');
-                            }}
-                            className="absolute top-2 right-2 w-8 h-8 bg-white rounded-full hover:bg-gray-100 transition-colors flex items-center justify-center z-10 shadow-lg border-2 border-red-500"
-                            style={{ color: 'var(--primary-red)' }}
-                            title="Delete Unit"
-                          >
-                            <FontAwesomeIcon icon={faTimes} className="text-sm" />
-                          </button>
-                        </div>
-                      ) : (
-                        // Normal mode - clickable card
-                        <CoordinatorUnitCard
-                          unit={unit}
-                          allStudentProgress={progress}
-                          assignments={assignments}
-                        />
+                      <CoordinatorUnitCard 
+                        unit={unit}
+                        onClick={() => handleEditUnit(unit)}
+                        className="cursor-pointer hover:shadow-lg transition-shadow"
+                      />
+                      
+                      {deleteMode === 'units' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteUnit(unit);
+                          }}
+                          className="absolute top-2 right-2 bg-red-100 text-red-700 p-2 rounded-full hover:bg-red-200 transition-colors"
+                        >
+                          <FontAwesomeIcon icon={faTimes} />
+                        </button>
                       )}
                     </div>
                   ))}
@@ -375,7 +422,7 @@ export default function ManageUnitsPage() {
         modalType={modalType}
         onClose={() => setModalType('none')}
         coordinators={coordinators}
-        teachers={teachers} // Pass teachers prop
+        teachers={teachers}
         onCourseAdded={handleCourseAdded}
         courseToDelete={courseToDelete}
         onCourseDeleted={handleCourseDeleted}

@@ -6,6 +6,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faSave, faEdit, faUser } from '@fortawesome/free-solid-svg-icons';
 import { Course, Unit, Teacher } from '../../../../../types';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://imajine-uni-api-production.up.railway.app';
+
 export default function EditUnitsPage() {
   const router = useRouter();
   const params = useParams();
@@ -26,13 +28,54 @@ export default function EditUnitsPage() {
     name: '',
     description: '',
     currentWeek: 1,
-    teacherId: '' // Add teacher ID to form state
+    teacherId: ''
   });
 
   // Helper function to show success message
   const showSuccessMessage = (message: string) => {
     setSuccessMessage(message);
     setTimeout(() => setSuccessMessage(''), 3000);
+  };
+
+  // Get auth token
+  const getAuthToken = (): string | null => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('token');
+    }
+    return null;
+  };
+
+  // API request helper with Railway integration
+  const makeAuthenticatedRequest = async (endpoint: string, options: RequestInit = {}) => {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('No authentication token found. Please log in.');
+    }
+
+    const config: RequestInit = {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...options.headers,
+      },
+      ...options,
+    };
+
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        // Token expired
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('userType');
+        throw new Error('Session expired. Please log in again.');
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || `Request failed with status ${response.status}`);
+    }
+
+    return response.json();
   };
 
   // Fetch unit and course information
@@ -45,11 +88,20 @@ export default function EditUnitsPage() {
       }
 
       try {
-        const response = await fetch('/api/academic-data');
-        if (!response.ok) throw new Error('Failed to fetch data');
+        setIsLoading(true);
+        setError(null);
 
-        const data = await response.json();
-        const foundUnit = data.units.find((u: Unit) => u.code === unitCode);
+        // Fetch data from Railway API
+        const [unitData, coursesData, teachersData] = await Promise.all([
+          makeAuthenticatedRequest(`/units/${unitCode}`),
+          makeAuthenticatedRequest('/courses'),
+          makeAuthenticatedRequest('/teachers')
+        ]);
+
+        // Handle different response formats
+        const foundUnit = unitData.success ? unitData.data : unitData;
+        const courses = coursesData.success ? coursesData.data : coursesData;
+        const teachersResult = teachersData.success ? teachersData.data : teachersData;
 
         if (!foundUnit) {
           setError('Unit not found');
@@ -57,27 +109,32 @@ export default function EditUnitsPage() {
           setUnit(foundUnit);
           
           // Find current teacher for this unit
-          const unitTeacher = data.teachers.find((t: Teacher) => 
-            t.unitsTeached && t.unitsTeached.includes(foundUnit.code)
-          );
+          const unitTeacher = Array.isArray(teachersResult) 
+            ? teachersResult.find((t: Teacher) => 
+                t.unitsTeached && t.unitsTeached.includes(foundUnit.code)
+              )
+            : null;
           setCurrentTeacher(unitTeacher || null);
           
           setEditedUnit({
             code: foundUnit.code,
             name: foundUnit.name,
-            description: foundUnit.description,
+            description: foundUnit.description || '',
             currentWeek: foundUnit.currentWeek,
-            teacherId: unitTeacher?.id || '' // Set current teacher ID
+            teacherId: unitTeacher?.id || ''
           });
 
           // Find the course this unit belongs to
-          const foundCourse = data.courses.find((c: Course) => c.code === foundUnit.courseCode);
+          const foundCourse = Array.isArray(courses)
+            ? courses.find((c: Course) => c.code === foundUnit.courseCode)
+            : null;
           setCourse(foundCourse || null);
           
           // Set available teachers
-          setTeachers(data.teachers || []);
+          setTeachers(Array.isArray(teachersResult) ? teachersResult : []);
         }
       } catch (err) {
+        console.error('Failed to fetch data:', err);
         setError(err instanceof Error ? err.message : 'Failed to load unit');
       } finally {
         setIsLoading(false);
@@ -121,39 +178,22 @@ export default function EditUnitsPage() {
         newTeacherId: editedUnit.teacherId || null
       });
 
-      // Update unit basic information
-      const unitResponse = await fetch(`/api/units/${unitCode}`, {
+      // Update unit using Railway API
+      const updateData = {
+        code: editedUnit.code.trim(),
+        name: editedUnit.name.trim(),
+        description: editedUnit.description.trim() || null, // Handle empty string as null
+        currentWeek: editedUnit.currentWeek,
+        courseCode: unit?.courseCode, // Keep the same course
+        oldTeacherId: currentTeacher?.id || null,
+        newTeacherId: editedUnit.teacherId || null
+      };
+
+      const result = await makeAuthenticatedRequest(`/units/${unitCode}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: editedUnit.code.trim(),
-          name: editedUnit.name.trim(),
-          description: editedUnit.description.trim(),
-          currentWeek: editedUnit.currentWeek,
-          courseCode: unit?.courseCode, // Keep the same course
-          oldTeacherId: currentTeacher?.id || null,
-          newTeacherId: editedUnit.teacherId || null
-        }),
+        body: JSON.stringify(updateData)
       });
 
-      console.log('Update response status:', unitResponse.status);
-      console.log('Update response ok:', unitResponse.ok);
-
-      if (!unitResponse.ok) {
-        const errorText = await unitResponse.text();
-        console.log('Error response text:', errorText);
-        
-        let errorData: any = {};
-        try {
-          errorData = JSON.parse(errorText);
-        } catch (parseError) {
-          console.log('Could not parse error response as JSON');
-        }
-        
-        throw new Error(errorData.error || errorData.details || errorText || 'Failed to update unit');
-      }
-
-      const result = await unitResponse.json();
       console.log('Unit updated successfully:', result);
       
       showSuccessMessage('Unit updated successfully!');
@@ -183,7 +223,7 @@ export default function EditUnitsPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--primary-red)] mx-auto mb-4"></div>
           <p className="text-gray-600">Loading unit information...</p>
         </div>
       </div>
@@ -262,7 +302,7 @@ export default function EditUnitsPage() {
       </div>
 
       {/* Unit Edit Form */}
-      <div className="bg-gray-50 p-6 rounded-lg">
+      <div className="bg-white p-6 rounded-lg shadow-md">
         <h2 className="text-2xl font-semibold mb-6" style={{ color: 'var(--text-black)' }}>
           <FontAwesomeIcon icon={faEdit} className="mr-2" />
           Unit Information
@@ -299,50 +339,53 @@ export default function EditUnitsPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Current Week
+                Unit Name *
               </label>
-              <select
+              <input
+                type="text"
+                value={editedUnit.name}
+                onChange={(e) => handleInputChange('name', e.target.value)}
+                className="lms-input w-full"
+                disabled={isSubmitting}
+                required
+              />
+            </div>
+          </div>
+
+          {/* Description and Current Week */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Description
+              </label>
+              <textarea
+                value={editedUnit.description}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                className="lms-input w-full"
+                rows={3}
+                placeholder="Enter unit description..."
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Current Week *
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="12"
                 value={editedUnit.currentWeek}
                 onChange={(e) => handleInputChange('currentWeek', parseInt(e.target.value))}
                 className="lms-input w-full"
                 disabled={isSubmitting}
-              >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map(week => (
-                  <option key={week} value={week}>
-                    Week {week}
-                  </option>
-                ))}
-              </select>
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Current progress week (1-12)
+              </p>
             </div>
-          </div>
-
-          {/* Unit Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Unit Name *
-            </label>
-            <input
-              type="text"
-              value={editedUnit.name}
-              onChange={(e) => handleInputChange('name', e.target.value)}
-              className="lms-input w-full"
-              disabled={isSubmitting}
-              required
-            />
-          </div>
-
-          {/* Unit Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Unit Description
-            </label>
-            <textarea
-              value={editedUnit.description}
-              onChange={(e) => handleInputChange('description', e.target.value)}
-              className="lms-input w-full"
-              rows={4}
-              disabled={isSubmitting}
-            />
           </div>
 
           {/* Teacher Assignment */}
