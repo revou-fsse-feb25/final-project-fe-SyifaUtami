@@ -278,11 +278,37 @@ class ApiClient {
   }
 
   // Academic Data methods
+// Just add this method to your existing working API client:
   async getAcademicData(): Promise<ApiResponse> {
-    return this.request('/academic-data');
+    try {
+      const response = await this.request<any>('/academic-data');
+      
+      // Handle both response formats
+      if (response && typeof response === 'object') {
+        if (response.success) {
+          return response as ApiResponse;
+        } else if (response.courses || response.units || response.assignments) {
+          console.log('📡 API: Converting direct response to wrapped format');
+          return {
+            success: true,
+            data: response
+          } as ApiResponse;
+        }
+      }
+      
+      return {
+        success: false,
+        data: { courses: [], units: [], assignments: [], teachers: [], coordinators: [] }
+      } as ApiResponse;
+    } catch (error) {
+      console.error('❌ API: getAcademicData failed:', error);
+      return {
+        success: false,
+        data: { courses: [], units: [], assignments: [], teachers: [], coordinators: [] }
+      } as ApiResponse;
+    }
   }
 }
-
 // Create and export singleton instance
 export const apiClient = new ApiClient(API_BASE_URL);
 
