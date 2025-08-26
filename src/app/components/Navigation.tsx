@@ -1,4 +1,3 @@
-
 'use client';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -137,7 +136,7 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
         window.removeEventListener('storage', handleCourseUpdate);
       };
     } else {
-      console.log('⏸️ Navigation: Waiting for user - hasUser:', !!user, 'isLoginPage:', isLoginPage);
+      console.log('⏸️ Navigation: Waiting for user - hasUser:', !user, 'isLoginPage:', isLoginPage);
     }
   }, [user, isLoginPage]);
 
@@ -158,6 +157,34 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
       }
       return newSet;
     });
+  };
+
+  // Helper functions for user profile information
+  const getProfilePath = (): string => {
+    if (userType === 'coordinator') {
+      return '/coordinator/profile';
+    }
+    return '/students/profile';
+  };
+
+  const getDisplayName = (): string => {
+    if (!user) return 'dreamer';
+    return user.firstName || user.email?.split('@')[0] || 'dreamer';
+  };
+
+  const handleLogout = async (): Promise<void> => {
+    try {
+      await authManager.logout();
+      setUser(null);
+      setUserType(null);
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Force local logout even if API fails
+      setUser(null);
+      setUserType(null);
+      window.location.href = '/login';
+    }
   };
 
   // Generate navigation items based on user type
@@ -376,19 +403,16 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
           </div>
         </div>
 
-        {/* Right side - User info + Logout */}
+        {/* Right side - User info only */}
         <div className="flex items-center space-x-4">
           {user && userType && (
-            <>
-              <div className="text-white flex items-center space-x-3">
-                <FontAwesomeIcon icon={faUser} className="text-lg" />
-                <div className="text-right">
-                  <p className="text-sm font-medium">{user.firstName} {user.lastName}</p>
-                  <p className="text-xs opacity-75 capitalize">{userType}</p>
-                </div>
+            <div className="text-white flex items-center space-x-3">
+              <FontAwesomeIcon icon={faUser} className="text-lg" />
+              <div className="text-left">
+                <p className="text-sm font-medium leading-tight">{user.firstName} {user.lastName}</p>
+                <p className="text-xs opacity-75 capitalize leading-tight">{userType}</p>
               </div>
-              <LogoutButton />
-            </>
+            </div>
           )}
         </div>
       </nav>
@@ -398,18 +422,8 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
         <div className="flex">
           {/* Left Navigation Panel */}
           {user && isMenuOpen && (
-            <div className="w-64 bg-white border-r border-gray-200 min-h-screen">
-              <div className="pt-5 pb-4 px-3">
-                {/* Debug info panel */}
-                <div className="mb-4 p-2 bg-gray-100 rounded text-xs">
-                  <div>User: {user.firstName} {user.lastName}</div>
-                  <div>Type: {userType}</div>
-                  <div>Course: {user.courseCode}</div>
-                  <div>Managed: {user.courseManaged?.join(', ') || 'None'}</div>
-                  <div>Courses Data: {coursesData ? `${coursesData.courses.length} courses, ${coursesData.units.length} units` : 'None'}</div>
-                  <div>Nav Items: {navigationItems.length}</div>
-                </div>
-
+            <div className="w-64 bg-white border-r border-gray-200 min-h-screen flex flex-col">
+              <div className="flex-1 pt-5 pb-4 px-3">
                 {/* Loading state */}
                 {isLoadingCourses && (
                   <div className="p-3 text-gray-500 text-sm flex items-center">
@@ -431,12 +445,44 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
                 {/* Navigation items */}
                 {!isLoadingCourses && navigationItems.length > 0 && (
                   <>
-                    <div className="mb-2 text-xs text-gray-400 uppercase font-semibold">
-                      Navigation
-                    </div>
                     {navigationItems.map(item => renderNavigationItem(item))}
                   </>
                 )}
+              </div>
+              
+              {/* User Profile and Logout Section at Bottom */}
+              <div className="border-t border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                      <FontAwesomeIcon icon={faUser} className="text-gray-600 text-sm" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {user.firstName} {user.lastName}
+                      </p>
+                      <p className="text-xs text-gray-500 capitalize">
+                        {userType}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Profile Link */}
+                <Link 
+                  href={getProfilePath()}
+                  className="block w-full text-center py-2 px-3 mb-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  View Profile
+                </Link>
+                
+                {/* Logout Button */}
+                <LogoutButton 
+                  variant="secondary" 
+                  size="sm"
+                  className="w-full text-center"
+                />
               </div>
             </div>
           )}
@@ -454,125 +500,3 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
 };
 
 export default Navigation;
-
-/* 'use client';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useState, useEffect } from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUser, faBars } from '@fortawesome/free-solid-svg-icons';
-import { authManager, type User } from '@/src/lib/auth';
-
-export default function Navigation() {
-  const [user, setUser] = useState<User | null>(null);
-  const [userType, setUserType] = useState<'student' | 'coordinator' | null>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  // Initialize auth state
-  useEffect(() => {
-    const authState = authManager.getAuthState();
-    setUser(authState.user);
-    setUserType(authState.userType);
-  }, []);
-
-  const toggleMenu = () => {
-    const newMenuState = !isMenuOpen;
-    setIsMenuOpen(newMenuState);
-    
-    // Dispatch custom event to notify AppLayout
-    window.dispatchEvent(new CustomEvent('menuToggle', { 
-      detail: { isOpen: newMenuState } 
-    }));
-  };
-
-  const getProfilePath = (): string => {
-    if (userType === 'coordinator') {
-      return '/coordinator/profile';
-    }
-    return '/students/profile';
-  };
-
-  const getDisplayName = (): string => {
-    if (!user) return 'dreamer';
-    return user.firstName || user.email?.split('@')[0] || 'dreamer';
-  };
-
-  const handleLogout = async (): Promise<void> => {
-    try {
-      await authManager.logout();
-      setUser(null);
-      setUserType(null);
-      window.location.href = '/login';
-    } catch (error) {
-      console.error('Logout failed:', error);
-      // Force local logout even if API fails
-      setUser(null);
-      setUserType(null);
-      window.location.href = '/login';
-    }
-  };
-
-  return (
-    <>
-      {/* Top Navigation Bar - Fixed position */}
-      <nav className="lms-nav px-4 py-4 flex items-center justify-between relative z-50 fixed top-0 left-0 right-0">
-        {/* Left side - Hamburger + Logo */}
-        <div className="flex items-center">
-          {/* Hamburger Menu - only show when logged in */}
-          {user && (
-            <button
-              onClick={toggleMenu}
-              className="mr-4 p-2 text-white hover:bg-white hover:text-black hover:bg-opacity-20 rounded transition-colors"
-            >
-              <FontAwesomeIcon icon={faBars} className="text-lg" />
-            </button>
-          )}
-          
-          <Image
-            src="/logo.png"
-            alt="University Logo"
-            width={150}
-            height={0}
-            className="mr-3"
-          />
-          <div className="text-white">
-            <p className="text-sm opacity-90">Learning Management System</p>
-          </div>
-        </div>
-
-        {/* Right side - User info */}
-        <div className="flex items-center space-x-4">
-          {user && userType ? (
-            <div className="flex items-center space-x-4">
-              <Link 
-                href={getProfilePath()}
-                className="flex items-center space-x-2 text-white hover:text-opacity-80 transition-colors cursor-pointer"
-              >
-                <FontAwesomeIcon icon={faUser} />
-                <span className="text-lg">
-                  Hi, <span className="font-semibold">{getDisplayName()}</span>
-                </span>
-              </Link>
-              <button
-                onClick={handleLogout}
-                className="text-white hover:text-opacity-80 transition-colors text-sm"
-              >
-                Logout
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center space-x-2 text-white">
-              <FontAwesomeIcon icon={faUser} />
-              <span className="text-lg">
-                Hi, <span className="font-semibold">dreamer</span>
-              </span>
-            </div>
-          )}
-        </div>
-      </nav>
-
-      {/* Spacer div to push content below fixed nav */}
-      <div className="h-20"></div>
-    </>
-  );
-} */

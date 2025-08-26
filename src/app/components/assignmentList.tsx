@@ -1,21 +1,16 @@
 // src/app/components/assignmentList.tsx
 'use client';
-import { Assignment, StudentSubmission } from '../../types';
+import { Assignment, StudentSubmission, AssignmentWithSubmission } from '../../types';
 import AssignmentCard from './assignmentCard';
-
-interface AssignmentWithSubmission {
-  assignment: Assignment;
-  submission?: StudentSubmission;
-}
 
 interface AssignmentListProps {
   title?: string;
-  assignments: AssignmentWithSubmission[];
+  assignments: AssignmentWithSubmission[];  // Only use AssignmentWithSubmission
   emptyMessage?: string;
   onAssignmentClick?: (item: AssignmentWithSubmission) => void;
   showUnit?: boolean;
   className?: string;
-  userType?: string; // Add userType prop to fix TypeScript error
+  userType?: string;
 }
 
 export default function AssignmentList({
@@ -25,7 +20,7 @@ export default function AssignmentList({
   onAssignmentClick,
   showUnit = false,
   className = "",
-  userType // Accept userType prop (even if not used for now)
+  userType
 }: AssignmentListProps) {
   
   return (
@@ -38,13 +33,14 @@ export default function AssignmentList({
         </p>
       ) : (
         <div className="space-y-4">
-          {assignments.map((item) => (
+          {assignments.map((item, index) => (
             <AssignmentCard
-              key={item.assignment.id}
+              key={item.submission?.submissionId || `assignment-${item.assignment.id}-${index}`}
               assignment={item.assignment}
               submission={item.submission}
               showUnit={showUnit}
               userType={userType}
+              onClick={onAssignmentClick ? () => onAssignmentClick(item) : undefined}
             />
           ))}
         </div>
