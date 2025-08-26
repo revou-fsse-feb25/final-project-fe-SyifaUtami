@@ -15,7 +15,8 @@ import {
   faChalkboardTeacher,
   faCog,
   faBars,
-  faUser
+  faUser,
+  faSignInAlt
 } from '@fortawesome/free-solid-svg-icons';
 import { authManager, type User } from '@/src/lib/auth';
 import { apiClient } from '@/src/lib/api';
@@ -35,118 +36,67 @@ interface NavigationProps {
 }
 
 const Navigation: React.FC<NavigationProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [userType, setUserType] = useState<'student' | 'coordinator' | null>(null);
+  // Get auth state immediately
+  const [user, setUser] = useState<User | null>(() => authManager.getUser());
+  const [userType, setUserType] = useState<'student' | 'coordinator' | null>(() => authManager.getUserType());
+  
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [coursesData, setCoursesData] = useState<{ courses: Course[]; units: Unit[] } | null>(null);
   const [isLoadingCourses, setIsLoadingCourses] = useState(false);
-  
-  // Don't show special layout on login page
-  const isLoginPage = pathname === '/login';
 
-  // Initialize auth state with delay
+  // Listen for auth changes (login/logout from other components)
   useEffect(() => {
-    console.log('🔄 Navigation: Initializing auth state...');
-    
-    const initializeAuth = () => {
-      setTimeout(() => {
-        const authState = authManager.getAuthState();
-        console.log('👤 Navigation: Auth state after delay:', {
-          hasUser: !!authState.user,
-          userType: authState.userType,
-          isAuthenticated: authState.isAuthenticated,
-          userId: authState.user?.id,
-          userCourseCode: authState.user?.courseCode,
-          userCourseManaged: authState.user?.courseManaged
-        });
-        
-        setUser(authState.user);
-        setUserType(authState.userType);
-      }, 200);
+    const handleAuthChange = () => {
+      setUser(authManager.getUser());
+      setUserType(authManager.getUserType());
     };
+
+    // Listen for both storage events (cross-tab) and custom auth events (same-tab)
+    const handleAuthStateChange = () => {
+      handleAuthChange();
+    };
+
+    window.addEventListener('storage', handleAuthStateChange);
+    window.addEventListener('authStateChanged', handleAuthStateChange);
     
-    initializeAuth();
+    return () => {
+      window.removeEventListener('storage', handleAuthStateChange);
+      window.removeEventListener('authStateChanged', handleAuthStateChange);
+    };
   }, []);
 
-  // Fetch courses data for navigation
-  const fetchCoursesData = async () => {
-    if (!user || isLoadingCourses) {
-      console.log('⏸️ Navigation: Skipping fetch - no user or already loading');
-      return;
+  // Fetch courses when user is available
+  useEffect(() => {
+    if (user) {
+      fetchCoursesData();
     }
+  }, [user]);
+
+  const fetchCoursesData = async () => {
+    if (isLoadingCourses) return;
     
     try {
       setIsLoadingCourses(true);
-      console.log('🔄 Navigation: Fetching courses data for navigation...');
-      
       const response = await apiClient.getAcademicData();
       
-      console.log('📡 Navigation: API Response:', {
-        success: response?.success,
-        hasCourses: !!response?.data?.courses,
-        coursesCount: response?.data?.courses?.length,
-        hasUnits: !!response?.data?.units,
-        unitsCount: response?.data?.units?.length
-      });
-      
-      if (response && response.success && response.data) {
-        console.log('✅ Navigation: Setting courses data');
-        
+      if (response?.success) {
         setCoursesData({
           courses: response.data.courses || [],
           units: response.data.units || []
         });
-      } else {
-        console.error('❌ Navigation: Invalid response structure:', response);
-        setCoursesData({
-          courses: [],
-          units: []
-        });
       }
     } catch (error) {
-      console.error('❌ Navigation: Failed to fetch courses data:', error);
-      setCoursesData({
-        courses: [],
-        units: []
-      });
+      console.error('Failed to fetch courses:', error);
+      setCoursesData({ courses: [], units: [] });
     } finally {
       setIsLoadingCourses(false);
     }
   };
 
-  // Fetch courses when user is available
-  useEffect(() => {
-    if (user && !isLoginPage) {
-      console.log('👤 Navigation: User available, fetching courses data...');
-      fetchCoursesData();
-
-      // Listen for course updates
-      const handleCourseUpdate = () => {
-        console.log('🔔 Navigation: Course update event received, refreshing navigation...');
-        fetchCoursesData();
-      };
-
-      window.addEventListener('courseUpdated', handleCourseUpdate);
-      window.addEventListener('storage', handleCourseUpdate);
-      
-      return () => {
-        window.removeEventListener('courseUpdated', handleCourseUpdate);
-        window.removeEventListener('storage', handleCourseUpdate);
-      };
-    } else {
-      console.log('⏸️ Navigation: Waiting for user - hasUser:', !user, 'isLoginPage:', isLoginPage);
-    }
-  }, [user, isLoginPage]);
-
-  // Toggle hamburger menu
-  const toggleMenu = () => {
-    const newMenuState = !isMenuOpen;
-    setIsMenuOpen(newMenuState);
-    console.log('🍔 Menu toggled:', newMenuState);
-  };
-
+  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+  
   const toggleExpanded = (itemId: string) => {
     setExpandedItems(prev => {
       const newSet = new Set(prev);
@@ -159,72 +109,19 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
     });
   };
 
-  // Helper functions for user profile information
-  const getProfilePath = (): string => {
-    if (userType === 'coordinator') {
-      return '/coordinator/profile';
-    }
-    return '/students/profile';
-  };
-
-  const getDisplayName = (): string => {
-    if (!user) return 'dreamer';
-    return user.firstName || user.email?.split('@')[0] || 'dreamer';
-  };
-
-  const handleLogout = async (): Promise<void> => {
-    try {
-      await authManager.logout();
-      setUser(null);
-      setUserType(null);
-      window.location.href = '/login';
-    } catch (error) {
-      console.error('Logout failed:', error);
-      // Force local logout even if API fails
-      setUser(null);
-      setUserType(null);
-      window.location.href = '/login';
-    }
-  };
-
-  // Generate navigation items based on user type
   const getNavigationItems = (): NavigationItem[] => {
-    if (!user) {
-      console.log('🚫 Navigation: No user available for navigation');
-      return [];
-    }
-
-    if (!coursesData) {
-      console.log('🚫 Navigation: No courses data available for navigation');
-      return [];
-    }
-
-    console.log('🎯 Navigation: Generating navigation for:', {
-      userType,
-      userCourseCode: user.courseCode,
-      userCourseManaged: user.courseManaged,
-      availableCourses: coursesData.courses.map(c => c.code),
-      availableUnits: coursesData.units.map(u => u.code)
-    });
+    if (!user || !coursesData) return [];
 
     if (userType === 'student') {
       const course = coursesData.courses.find(c => c.code === user.courseCode);
-      
-      // Handle units - try course.units first, fallback to courseCode matching
       let units: Unit[] = [];
+      
       if (course) {
-        if (course.units && course.units.length > 0) {
-          units = course.units.map(unitCode => 
-            coursesData.units.find(unit => unit.code === unitCode)
-          ).filter(Boolean) as Unit[];
-        } else {
-          units = coursesData.units.filter(unit => 
-            unit.courseCode === course.code
-          );
-        }
+        units = course.units?.map(unitCode => 
+          coursesData.units.find(unit => unit.code === unitCode)
+        ).filter(Boolean) as Unit[] || 
+        coursesData.units.filter(unit => unit.courseCode === course.code);
       }
-
-      console.log('👨‍🎓 Student navigation:', { course, units });
 
       return [
         {
@@ -253,8 +150,6 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
         coursesData.courses.find(course => course.code === courseCode)
       ).filter(Boolean) as Course[] || [];
 
-      console.log('👨‍🏫 Coordinator navigation:', { managedCourses });
-
       return [
         {
           id: 'overview',
@@ -267,30 +162,21 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
           label: 'Courses',
           href: '/coordinator/courses',
           icon: faGraduationCap,
-          children: managedCourses.map(course => {
-            let courseUnits: Unit[] = [];
-            if (course.units && course.units.length > 0) {
-              courseUnits = course.units.map(unitCode => 
-                coursesData.units.find(u => u.code === unitCode)
-              ).filter(Boolean) as Unit[];
-            } else {
-              courseUnits = coursesData.units.filter(unit => 
-                unit.courseCode === course.code
-              );
-            }
-
-            return {
-              id: `course-${course.code}`,
-              label: `${course.name} (${course.code})`,
-              href: `/coordinator/courses/${course.code}`,
-              children: courseUnits.map(unit => ({
-                id: `unit-${unit.code}`,
-                label: unit.name || unit.code,
-                href: `/coordinator/units/${unit.code}`,
-                icon: faBookOpen
-              }))
-            };
-          })
+          children: managedCourses.map(course => ({
+            id: `course-${course.code}`,
+            label: `${course.name} (${course.code})`,
+            href: `/coordinator/courses/${course.code}`,
+            children: (course.units?.map(unitCode => 
+              coursesData.units.find(u => u.code === unitCode)
+            ).filter(Boolean) as Unit[] || 
+            coursesData.units.filter(unit => unit.courseCode === course.code))
+            .map(unit => ({
+              id: `unit-${unit.code}`,
+              label: unit.name || unit.code,
+              href: `/coordinator/units/${unit.code}`,
+              icon: faBookOpen
+            }))
+          }))
         },
         {
           id: 'students',
@@ -313,7 +199,6 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
       ];
     }
 
-    console.log('❓ Navigation: Unknown user type');
     return [];
   };
 
@@ -365,47 +250,27 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
     );
   };
 
-  if (isLoginPage) {
-    return (
-      <div className="min-h-screen" style={{ backgroundColor: 'var(--card-background)' }}>
-        {children}
-      </div>
-    );
-  }
-
-  const navigationItems = getNavigationItems();
-
   return (
     <>
-      {/* Top Navigation Bar */}
+      {/* Top Navigation Bar - ALWAYS VISIBLE */}
       <nav className="lms-nav px-4 py-4 flex items-center justify-between relative z-50">
-        {/* Left side - Hamburger + Logo */}
         <div className="flex items-center">
-          {/* Hamburger Menu - only show when logged in */}
-          {user && (
-            <button
-              onClick={toggleMenu}
-              className="mr-4 p-2 text-white hover:bg-white hover:text-black hover:bg-opacity-20 rounded transition-colors"
-            >
-              <FontAwesomeIcon icon={faBars} className="text-lg" />
-            </button>
-          )}
+          {/* Hamburger Menu - ALWAYS VISIBLE */}
+          <button
+            onClick={toggleMenu}
+            className="mr-4 p-2 text-white hover:bg-white hover:text-black hover:bg-opacity-20 rounded transition-colors"
+          >
+            <FontAwesomeIcon icon={faBars} className="text-lg" />
+          </button>
           
-          <Image
-            src="/logo.png"
-            alt="University Logo"
-            width={150}
-            height={0}
-            className="mr-3"
-          />
+          <Image src="/logo.png" alt="University Logo" width={150} height={0} className="mr-3" />
           <div className="text-white">
             <p className="text-sm opacity-90">Learning Management System</p>
           </div>
         </div>
 
-        {/* Right side - User info only */}
         <div className="flex items-center space-x-4">
-          {user && userType && (
+          {user && userType ? (
             <div className="text-white flex items-center space-x-3">
               <FontAwesomeIcon icon={faUser} className="text-lg" />
               <div className="text-left">
@@ -413,6 +278,14 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
                 <p className="text-xs opacity-75 capitalize leading-tight">{userType}</p>
               </div>
             </div>
+          ) : (
+            <Link 
+              href="/login" 
+              className="text-white flex items-center space-x-2 px-3 py-2 rounded"
+            >
+              <FontAwesomeIcon icon={faSignInAlt} className="text-lg" />
+              <span className="text-sm">Login</span>
+            </Link>
           )}
         </div>
       </nav>
@@ -420,40 +293,34 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
       {/* Main Layout */}
       <div className="min-h-screen" style={{ backgroundColor: 'var(--card-background)' }}>
         <div className="flex">
-          {/* Left Navigation Panel */}
-          {user && isMenuOpen && (
+          {/* Left Navigation Panel - ALWAYS VISIBLE WHEN MENU IS OPEN */}
+          {isMenuOpen && (
             <div className="w-64 bg-white border-r border-gray-200 min-h-screen flex flex-col">
               <div className="flex-1 pt-5 pb-4 px-3">
-                {/* Loading state */}
-                {isLoadingCourses && (
+                {!user ? (
+                  /* Not logged in state */
+                  <div className="p-4 text-center">
+                    <div className="mb-4">
+                      <FontAwesomeIcon icon={faSignInAlt} className="text-4xl text-gray-400 mb-3" />
+                      <p className="text-gray-600 mb-4">Please login to access navigation</p>
+                    </div>
+                  </div>
+                ) : isLoadingCourses ? (
+                  /* Loading courses */
                   <div className="p-3 text-gray-500 text-sm flex items-center">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-2"></div>
                     Loading navigation...
                   </div>
-                )}
-                
-                {/* No data state */}
-                {!isLoadingCourses && (!coursesData || navigationItems.length === 0) && (
-                  <div className="p-3 text-red-500 text-sm">
-                    ⚠️ No navigation data available
-                    <div className="text-xs mt-1">
-                      Check console for debugging info
-                    </div>
-                  </div>
-                )}
-                
-                {/* Navigation items */}
-                {!isLoadingCourses && navigationItems.length > 0 && (
-                  <>
-                    {navigationItems.map(item => renderNavigationItem(item))}
-                  </>
+                ) : (
+                  /* Logged in navigation */
+                  getNavigationItems().map(item => renderNavigationItem(item))
                 )}
               </div>
               
-              {/* User Profile and Logout Section at Bottom */}
-              <div className="border-t border-gray-200 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center space-x-3">
+              {/* User Profile and Logout - only show when logged in */}
+              {user && (
+                <div className="border-t border-gray-200 p-4">
+                  <div className="flex items-center space-x-3 mb-3">
                     <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
                       <FontAwesomeIcon icon={faUser} className="text-gray-600 text-sm" />
                     </div>
@@ -461,37 +328,26 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
                       <p className="text-sm font-medium text-gray-900 truncate">
                         {user.firstName} {user.lastName}
                       </p>
-                      <p className="text-xs text-gray-500 capitalize">
-                        {userType}
-                      </p>
+                      <p className="text-xs text-gray-500 capitalize">{userType}</p>
                     </div>
                   </div>
+                  
+                  <Link 
+                    href={userType === 'coordinator' ? '/coordinator/profile' : '/students/profile'}
+                    className="block w-full text-center py-2 px-3 mb-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    View Profile
+                  </Link>
+                  
+                  <LogoutButton variant="secondary" size="sm" className="w-full text-center" />
                 </div>
-                
-                {/* Profile Link */}
-                <Link 
-                  href={getProfilePath()}
-                  className="block w-full text-center py-2 px-3 mb-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  View Profile
-                </Link>
-                
-                {/* Logout Button */}
-                <LogoutButton 
-                  variant="secondary" 
-                  size="sm"
-                  className="w-full text-center"
-                />
-              </div>
+              )}
             </div>
           )}
           
-          {/* Main Content Area */}
           <div className="flex-1">
-            <main className="p-6">
-              {children}
-            </main>
+            <main className="p-6">{children}</main>
           </div>
         </div>
       </div>

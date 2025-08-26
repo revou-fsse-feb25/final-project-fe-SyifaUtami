@@ -1,24 +1,5 @@
-// src/lib/auth.ts
-import { apiClient } from './api';
 
-interface User {
-  id: string;
-  email: string | null;
-  firstName: string;
-  lastName: string | null;
-  role: 'STUDENT' | 'COORDINATOR';
-  createdAt: string;
-  updatedAt: string;
-  
-  // Student-specific fields
-  courseCode?: string | null;
-  year?: number | null;
-  
-  // Coordinator-specific fields
-  title?: string | null;
-  accessLevel?: string | null;
-  courseManaged?: string[]; // ADD THIS LINE
-}
+import { apiClient } from './api';
 
 interface User {
   id: string;
@@ -67,6 +48,16 @@ class AuthManager {
       AuthManager.instance = new AuthManager();
     }
     return AuthManager.instance;
+  }
+
+  // Notify components about auth state changes
+  private notifyAuthStateChange() {
+    if (typeof window !== 'undefined') {
+      // Emit custom event for same-tab components
+      window.dispatchEvent(new CustomEvent('authStateChanged', {
+        detail: this.authState
+      }));
+    }
   }
 
   private loadAuthFromStorage() {
@@ -142,6 +133,9 @@ class AuthManager {
           response.userType
         );
 
+        // Notify components about auth state change
+        this.notifyAuthStateChange();
+
         return { success: true };
       } else {
         return { success: false, message: 'Login failed' };
@@ -163,6 +157,8 @@ class AuthManager {
       // Continue with local logout even if API call fails
     } finally {
       this.clearAuth();
+      // Notify components about auth state change
+      this.notifyAuthStateChange();
     }
   }
 
@@ -182,10 +178,14 @@ class AuthManager {
       localStorage.setItem('access_token', response.access_token);
       localStorage.setItem('refresh_token', response.refresh_token);
 
+      // Notify components about auth state change
+      this.notifyAuthStateChange();
+
       return true;
     } catch (error) {
       console.error('Token refresh failed:', error);
       this.clearAuth();
+      this.notifyAuthStateChange();
       return false;
     }
   }
