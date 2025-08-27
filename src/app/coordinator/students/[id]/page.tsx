@@ -1,465 +1,317 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import StudentGrade from '../../../components/studentGrade';
+import Tabs, { TabItem } from '../../../components/tabs';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { 
-  faArrowLeft, 
-  faCheckCircle, 
-  faTimesCircle, 
-  faEdit,
-  faSave,
-  faTimes
-} from '@fortawesome/free-solid-svg-icons';
-import Tabs from '../../../components/tabs';
+import { faArrowLeft, faEdit, faSave, faTimes, faCheckCircle, faTimesCircle } from '@fortawesome/free-solid-svg-icons';
 
+// Import your types
 import { 
   Student, 
-  StudentAssignment, 
-  StudentProgress, 
-  ApiResponse, 
-  UpdateGradeRequest,
-  UpdateProgressRequest,
-  TabItem,
-  Unit
-} from '../../../../types'
+  StudentSubmission, 
+  StudentProgress 
+} from '../../../../types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://imajine-uni-api-production.up.railway.app';
 
-// Define the StudentData interface
-interface StudentData {
+interface StudentDetailData {
   student: Student;
-  assignments: StudentAssignment[];
+  assignments: StudentSubmission[];
   progress: StudentProgress[];
 }
 
-// Define statistics interface
-interface StudentStats {
-  averageGrade: number;
-  submittedCount: number;
-  totalAssignments: number;
-  completedWeeks: number;
-  totalWeeks: number;
-}
+export default function StudentDetailPage() {
+  const router = useRouter();
+  const params = useParams();
+  const studentId = params.id as string;
 
-export default function CoordinatorStudentDetailPage() {
-  const [data, setData] = useState<StudentData | null>(null);
+  const [data, setData] = useState<StudentDetailData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [successMessage, setSuccessMessage] = useState<string>('');
+  
+  // Editing states
   const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
   const [editingProgress, setEditingProgress] = useState<string | null>(null);
   const [tempGrade, setTempGrade] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string>('');
 
-  const router = useRouter();
-  const params = useParams();
-  const studentId = params?.id as string;
-
-  // Fetch student data from Railway API
-  const fetchStudentData = async () => {
-    if (!studentId) return;
-
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No authentication token found');
-      }
-
-      const [studentResponse, assignmentsResponse, progressResponse] = await Promise.all([
-        fetch(`${API_BASE_URL}/students/${studentId}`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        }),
-        fetch(`${API_BASE_URL}/assignments?studentId=${studentId}&includeSubmissions=true`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        }),
-        fetch(`${API_BASE_URL}/student-progress/student/${studentId}`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        })
-      ]);
-
-      if (!studentResponse.ok || !assignmentsResponse.ok || !progressResponse.ok) {
-        if (studentResponse.status === 401 || assignmentsResponse.status === 401 || progressResponse.status === 401) {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          localStorage.removeItem('userType');
-          throw new Error('Session expired. Please log in again.');
-        }
-        throw new Error('Failed to fetch student data');
-      }
-
-      const studentData = await studentResponse.json();
-      const assignmentsData = await assignmentsResponse.json();
-      const progressData = await progressResponse.json();
-
-      // Handle different response formats
-      const student = studentData.success ? studentData.data : studentData;
-      const assignments = assignmentsData.success ? assignmentsData.data : (assignmentsData.assignments || assignmentsData);
-      const progress = progressData.success ? progressData.data : (progressData.progress || progressData);
-
-      setData({
-        student,
-        assignments: assignments || [],
-        progress: progress || []
-      });
-
-    } catch (err) {
-      console.error('Fetch error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load student data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchStudentData();
-  }, [studentId]);
-
-  // Show success message
+  // Helper function to show success message
   const showSuccessMessage = (message: string) => {
     setSuccessMessage(message);
     setTimeout(() => setSuccessMessage(''), 3000);
   };
 
+  // Fetch student data from Railway API
+  useEffect(() => {
+    const fetchStudentData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+        if (!token) {
+          throw new Error('No authentication token found. Please log in again.');
+        }
+
+        const headers = {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        };
+
+        console.log('🔍 Fetching student details for ID:', studentId);
+
+        // Fetch student details first
+        const studentResponse = await fetch(`${API_BASE_URL}/students/${studentId}`, { headers });
+        console.log('👤 Student response status:', studentResponse.status);
+        
+        if (!studentResponse.ok) {
+          if (studentResponse.status === 401) {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('userType');
+            throw new Error('Session expired. Please log in again.');
+          }
+          throw new Error(`Failed to fetch student: ${studentResponse.status}`);
+        }
+
+        const studentData = await studentResponse.json();
+        console.log('👤 Student data received:', studentData);
+
+        // The API returns the student data in a specific format
+        let student, assignments, progress;
+
+        if (studentData.student) {
+          // If the API returns {student, assignments, progress}
+          student = studentData.student;
+          assignments = studentData.assignments || [];
+          progress = studentData.progress || [];
+        } else if (studentData.data) {
+          // If the API returns {success: true, data: {student, assignments, progress}}
+          student = studentData.data.student;
+          assignments = studentData.data.assignments || [];
+          progress = studentData.data.progress || [];
+        } else {
+          // If the API returns the student data directly
+          student = studentData;
+          assignments = [];
+          progress = [];
+        }
+
+        console.log('✅ Processed student:', student);
+        console.log('📝 Assignments found:', assignments.length);
+        console.log('📊 Progress found:', progress.length);
+
+        // If we don't have assignments from the student endpoint, fetch them separately
+        if (!assignments || assignments.length === 0) {
+          console.log('🔍 Fetching assignments separately...');
+          try {
+            const assignmentsResponse = await fetch(`${API_BASE_URL}/assignments?studentId=${studentId}&includeSubmissions=true`, { headers });
+            if (assignmentsResponse.ok) {
+              const assignmentsData = await assignmentsResponse.json();
+              assignments = assignmentsData.success ? assignmentsData.data : (assignmentsData.assignments || assignmentsData);
+              console.log('📝 Separate assignments fetch:', Array.isArray(assignments) ? assignments.length : 'not array');
+            }
+          } catch (err) {
+            console.log('⚠️ Assignments fetch failed:', err);
+            assignments = [];
+          }
+        }
+
+        // If we don't have progress from the student endpoint, fetch it separately
+        if (!progress || progress.length === 0) {
+          console.log('🔍 Fetching progress separately...');
+          try {
+            const progressResponse = await fetch(`${API_BASE_URL}/student-progress/student/${studentId}`, { headers });
+            if (progressResponse.ok) {
+              const progressData = await progressResponse.json();
+              progress = progressData.success ? progressData.data : (progressData.progress || progressData);
+              console.log('📊 Separate progress fetch:', Array.isArray(progress) ? progress.length : 'not array');
+            }
+          } catch (err) {
+            console.log('⚠️ Progress fetch failed:', err);
+            progress = [];
+          }
+        }
+
+        // Ensure we have arrays
+        const assignmentsList = Array.isArray(assignments) ? assignments : [];
+        const progressList = Array.isArray(progress) ? progress : [];
+
+        console.log('🎯 Final data:', {
+          student: !!student,
+          assignments: assignmentsList.length,
+          progress: progressList.length
+        });
+
+        if (!student) {
+          throw new Error('Student not found or invalid response format');
+        }
+
+        setData({
+          student,
+          assignments: assignmentsList,
+          progress: progressList
+        });
+
+      } catch (err) {
+        console.error('💥 Fetch error:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load student data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (studentId) {
+      fetchStudentData();
+    }
+  }, [studentId]);
+
   // Calculate statistics
-  const calculateStats = useCallback((): StudentStats => {
+  const calculateStats = useCallback(() => {
     if (!data) return { averageGrade: 0, submittedCount: 0, totalAssignments: 0, completedWeeks: 0, totalWeeks: 0 };
     
     const gradedAssignments = data.assignments.filter(a => a.grade !== null && a.grade !== undefined);
     const averageGrade = gradedAssignments.length > 0
-      ? gradedAssignments.reduce((sum: number, a) => sum + (a.grade || 0), 0) / gradedAssignments.length
+      ? Math.round(gradedAssignments.reduce((sum, a) => sum + (a.grade || 0), 0) / gradedAssignments.length)
       : 0;
-
+    
     const submittedCount = data.assignments.filter(a => a.submissionStatus === 'SUBMITTED').length;
-    const totalAssignments = data.assignments.length;
-
-    // Calculate progress completion
-    const progressWeeks = data.progress.reduce((sum: number, prevData: StudentProgress) => {
-      let completed = 0;
-      if (prevData.week1Material === 'DONE') completed++;
-      if (prevData.week2Material === 'DONE') completed++;
-      if (prevData.week3Material === 'DONE') completed++;
-      if (prevData.week4Material === 'DONE') completed++;
-      return sum + completed;
-    }, 0);
-
-    const totalWeeks = data.progress.length * 4; // 4 weeks per unit
+    
+    let completedWeeks = 0;
+    let totalWeeks = 0;
+    
+    data.progress.forEach(unit => {
+      const weeks = ['week1Material', 'week2Material', 'week3Material', 'week4Material'] as const;
+      weeks.forEach(week => {
+        totalWeeks++;
+        if (unit[week] === 'DONE') completedWeeks++;
+      });
+    });
 
     return {
-      averageGrade: Math.round(averageGrade * 100) / 100,
+      averageGrade,
       submittedCount,
-      totalAssignments,
-      completedWeeks: progressWeeks,
+      totalAssignments: data.assignments.length,
+      completedWeeks,
       totalWeeks
     };
   }, [data]);
 
-  // Grade an assignment
-  const handleGradeAssignment = async (submissionId: string, grade: number, comment?: string) => {
+  // Handle grade update
+  const handleGradeUpdate = async (submissionId: string, newGrade: number) => {
     try {
       setIsSaving(true);
+      
+      if (isNaN(newGrade) || newGrade < 0 || newGrade > 100) {
+        alert('Please enter a valid grade between 0 and 100');
+        return;
+      }
+
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       
       const response = await fetch(`${API_BASE_URL}/submissions/${submissionId}/grade`, {
         method: 'PUT',
-        headers: {
+        headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          grade,
-          comment,
-          gradedBy: 'coordinator' // You can get this from user context
-        } as UpdateGradeRequest)
+        body: JSON.stringify({ 
+          grade: newGrade, 
+          gradedBy: 'coordinator',
+          comment: ''
+        }),
       });
-
+      
       if (!response.ok) {
-        throw new Error('Failed to update grade');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to update grade');
       }
-
-      // Refresh data
-      await fetchStudentData();
-      showSuccessMessage('Grade updated successfully');
+      
+      setData(prevData => {
+        if (!prevData) return prevData;
+        return {
+          ...prevData,
+          assignments: prevData.assignments.map(assignment =>
+            assignment.submissionId === submissionId
+              ? { ...assignment, grade: newGrade }
+              : assignment
+          )
+        };
+      });
+      
       setEditingAssignment(null);
       setTempGrade('');
+      showSuccessMessage('Grade updated successfully');
+      
     } catch (err) {
-      console.error('Grade update failed:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update grade');
+      alert(`Failed to update grade: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Update progress
-  const handleUpdateProgress = async (studentId: string, unitCode: string, progressData: Partial<StudentProgress>) => {
+  // Handle progress update
+  const handleProgressUpdate = async (unitCode: string, weekNumber: number, completed: boolean) => {
     try {
       setIsSaving(true);
+
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const weekField = `week${weekNumber}Material`;
       
       const response = await fetch(`${API_BASE_URL}/student-progress/student/${studentId}/unit/${unitCode}`, {
         method: 'PUT',
-        headers: {
+        headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          ...progressData,
-          updatedBy: 'coordinator' // You can get this from user context
-        } as UpdateProgressRequest)
+          [weekField]: completed ? 'DONE' : 'NOT_DONE',
+          updatedBy: 'coordinator'
+        }),
       });
-
+      
       if (!response.ok) {
-        throw new Error('Failed to update progress');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to update progress');
       }
-
-      // Refresh data
-      await fetchStudentData();
-      showSuccessMessage('Progress updated successfully');
+      
+      setData(prevData => {
+        if (!prevData) return prevData;
+        return {
+          ...prevData,
+          progress: prevData.progress.map(unit =>
+            unit.unitCode === unitCode
+              ? { 
+                  ...unit, 
+                  [weekField as keyof StudentProgress]: completed ? 'DONE' : 'NOT_DONE'
+                }
+              : unit
+          )
+        };
+      });
+      
       setEditingProgress(null);
+      showSuccessMessage(`${unitCode} Week ${weekNumber} marked as ${completed ? 'done' : 'not done'}`);
+      
     } catch (err) {
-      console.error('Progress update failed:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update progress');
+      alert(`Failed to update progress: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setIsSaving(false);
     }
   };
-
-  // Get stats
-  const stats = calculateStats();
-
-  // Tab content
-  const tabs: TabItem[] = [
-    {
-      id: 'overview',
-      label: 'Overview',
-      content: (
-        <div className="space-y-6">
-          {/* Student Information Card */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-xl font-semibold mb-4" style={{ color: 'var(--text-black)' }}>
-              Student Information
-            </h3>
-            {data && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Name</p>
-                  <p className="font-medium">
-                    {data.student.firstName} {data.student.lastName}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Email</p>
-                  <p className="font-medium">{data.student.email}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Course</p>
-                  <p className="font-medium">{data.student.courseCode}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Year</p>
-                  <p className="font-medium">Year {data.student.year}</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
-              <div className="text-2xl font-bold mb-2" style={{ color: 'var(--primary-red)' }}>
-                {stats.averageGrade}%
-              </div>
-              <p className="text-sm text-gray-600">Average Grade</p>
-            </div>
-            
-            <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
-              <div className="text-2xl font-bold mb-2" style={{ color: 'var(--primary-red)' }}>
-                {stats.submittedCount}/{stats.totalAssignments}
-              </div>
-              <p className="text-sm text-gray-600">Submissions</p>
-            </div>
-            
-            <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
-              <div className="text-2xl font-bold mb-2" style={{ color: 'var(--primary-red)' }}>
-                {stats.completedWeeks}/{stats.totalWeeks}
-              </div>
-              <p className="text-sm text-gray-600">Completed Weeks</p>
-            </div>
-            
-            <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
-              <div className="text-2xl font-bold mb-2" style={{ color: 'var(--primary-red)' }}>
-                {stats.totalWeeks > 0 ? Math.round((stats.completedWeeks / stats.totalWeeks) * 100) : 0}%
-              </div>
-              <p className="text-sm text-gray-600">Progress</p>
-            </div>
-          </div>
-        </div>
-      )
-    },
-    {
-      id: 'assignments',
-      label: 'Assignments',
-      badge: stats.totalAssignments.toString(),
-      content: (
-        <div className="space-y-4">
-          {data?.assignments.map((assignment) => (
-            <div key={assignment.id} className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h4 className="text-lg font-semibold" style={{ color: 'var(--text-black)' }}>
-                    {assignment.assignmentName || assignment.id}
-                  </h4>
-                  <p className="text-sm text-gray-600">
-                    Unit: {assignment.unitCode} • Due: {assignment.deadline ? new Date(assignment.deadline).toLocaleDateString() : 'No deadline'}
-                  </p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <FontAwesomeIcon
-                    icon={assignment.submissionStatus === 'SUBMITTED' ? faCheckCircle : faTimesCircle}
-                    className={assignment.submissionStatus === 'SUBMITTED' ? 'text-green-500' : 'text-red-500'}
-                  />
-                  <span className={`text-sm font-medium ${
-                    assignment.submissionStatus === 'SUBMITTED' ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {assignment.submissionStatus}
-                  </span>
-                </div>
-              </div>
-
-              {/* Grade Section */}
-              <div className="flex items-center justify-between">
-                <div>
-                  {editingAssignment === assignment.submissionId ? (
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={tempGrade}
-                        onChange={(e) => setTempGrade(e.target.value)}
-                        className="w-20 px-2 py-1 border rounded"
-                        placeholder="Grade"
-                      />
-                      <button
-                        onClick={() => handleGradeAssignment(assignment.submissionId, parseFloat(tempGrade))}
-                        disabled={isSaving || !tempGrade}
-                        className="text-green-600 hover:text-green-800"
-                      >
-                        <FontAwesomeIcon icon={faSave} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingAssignment(null);
-                          setTempGrade('');
-                        }}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        <FontAwesomeIcon icon={faTimes} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm text-gray-600">
-                        Grade: <span className="font-medium">{assignment.grade ? `${assignment.grade}%` : 'Not graded'}</span>
-                      </span>
-                      <button
-                        onClick={() => {
-                          setEditingAssignment(assignment.submissionId);
-                          setTempGrade(assignment.grade?.toString() || '');
-                        }}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        <FontAwesomeIcon icon={faEdit} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-          
-          {!data?.assignments.length && (
-            <div className="text-center py-8">
-              <p className="text-gray-500">No assignments found for this student.</p>
-            </div>
-          )}
-        </div>
-      )
-    },
-    {
-      id: 'progress',
-      label: 'Progress',
-      content: (
-        <div className="space-y-4">
-          {data?.progress.map((unit: StudentProgress) => (
-            <div key={unit.unitCode} className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h4 className="text-lg font-semibold" style={{ color: 'var(--text-black)' }}>
-                  {unit.unitCode}
-                </h4>
-                <button
-                  onClick={() => setEditingProgress(unit.unitCode)}
-                  className="text-blue-600 hover:text-blue-800"
-                >
-                  <FontAwesomeIcon icon={faEdit} />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-4 gap-4">
-                {(['week1Material', 'week2Material', 'week3Material', 'week4Material'] as const).map((week, index) => (
-                  <div key={week} className="text-center">
-                    <p className="text-sm text-gray-600 mb-1">Week {index + 1}</p>
-                    {editingProgress === unit.unitCode ? (
-                      <select
-                        value={unit[week]}
-                        onChange={(e) => {
-                          const newValue = e.target.value as 'DONE' | 'NOT_DONE';
-                          handleUpdateProgress(unit.studentId, unit.unitCode, {
-                            [week]: newValue
-                          });
-                        }}
-                        className="w-full px-2 py-1 border rounded text-sm"
-                      >
-                        <option value="NOT_DONE">Not Done</option>
-                        <option value="DONE">Done</option>
-                      </select>
-                    ) : (
-                      <div className="flex items-center justify-center">
-                        <FontAwesomeIcon
-                          icon={unit[week] === 'DONE' ? faCheckCircle : faTimesCircle}
-                          className={unit[week] === 'DONE' ? 'text-green-500' : 'text-red-500'}
-                        />
-                        <span className={`ml-2 text-sm font-medium ${
-                          unit[week] === 'DONE' ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {unit[week] === 'DONE' ? 'Done' : 'Not Done'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-          
-          {!data?.progress.length && (
-            <div className="text-center py-8">
-              <p className="text-gray-500">No progress data found for this student.</p>
-            </div>
-          )}
-        </div>
-      )
-    }
-  ];
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[var(--primary-red)]"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p className="text-lg text-gray-600">Loading student data...</p>
+        </div>
       </div>
     );
   }
@@ -470,10 +322,7 @@ export default function CoordinatorStudentDetailPage() {
         <div className="text-center">
           <h1 className="text-2xl font-semibold mb-4" style={{ color: 'var(--primary-red)' }}>Error</h1>
           <p className="text-lg text-gray-600 mb-4">{error || 'Student not found'}</p>
-          <button 
-            onClick={() => router.back()} 
-            className="lms-button-primary"
-          >
+          <button onClick={() => router.back()} className="lms-button-secondary">
             Go Back
           </button>
         </div>
@@ -481,66 +330,314 @@ export default function CoordinatorStudentDetailPage() {
     );
   }
 
-  return (
-    <div className="max-w-6xl mx-auto px-6 py-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <button
-            onClick={() => router.back()}
-            className="flex items-center text-blue-600 hover:text-blue-800 mb-4"
-          >
-            <FontAwesomeIcon icon={faArrowLeft} className="mr-2" />
-            Back to Students
-          </button>
-          
-          <h1 className="text-4xl font-bold mb-2" style={{ color: 'var(--text-black)' }}>
-            {data.student.firstName} {data.student.lastName}
-          </h1>
-          <p className="text-lg text-gray-600">Student Details</p>
+  const { student, assignments, progress } = data;
+  const stats = calculateStats();
+
+  // Create tab content components
+  const OverviewContent = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="lms-card">
+        <h3 className="text-lg font-semibold mb-4">Academic Performance</h3>
+        <div className="space-y-3">
+          <div className="flex justify-between">
+            <span>Average Grade:</span>
+            <StudentGrade grade={stats.averageGrade} size="sm" />
+          </div>
+          <div className="flex justify-between">
+            <span>Assignments Submitted:</span>
+            <span className="font-medium">{stats.submittedCount}/{stats.totalAssignments}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Weekly Progress:</span>
+            <span className="font-medium">
+              {stats.completedWeeks}/{stats.totalWeeks} ({stats.totalWeeks > 0 ? Math.round((stats.completedWeeks / stats.totalWeeks) * 100) : 0}%)
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Success Message */}
-      {successMessage && (
-        <div className="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
-          {successMessage}
+      <div className="lms-card">
+        <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
+        <div className="space-y-3">
+          {assignments
+            .filter(a => a.submittedAt)
+            .sort((a, b) => new Date(b.submittedAt!).getTime() - new Date(a.submittedAt!).getTime())
+            .slice(0, 5)
+            .map((assignment) => (
+              <div key={assignment.submissionId} className="flex justify-between items-center text-sm">
+                <span>Assignment {assignment.assignmentId}</span>
+                <span className="text-gray-500">
+                  {new Date(assignment.submittedAt!).toLocaleDateString()}
+                </span>
+              </div>
+            ))
+          }
+          {assignments.filter(a => a.submittedAt).length === 0 && (
+            <p className="text-gray-500 text-sm">No recent submissions</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const AssignmentsContent = () => (
+    <div className="lms-card">
+      <h3 className="text-lg font-semibold mb-4">Assignments</h3>
+      <div className="overflow-x-auto">
+        <table className="min-w-full">
+          <thead>
+            <tr className="border-b">
+              <th className="text-left py-3 px-4">Assignment</th>
+              <th className="text-left py-3 px-4">Status</th>
+              <th className="text-left py-3 px-4">Grade</th>
+              <th className="text-left py-3 px-4">Submitted</th>
+              <th className="text-left py-3 px-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {assignments.map((assignment) => (
+              <tr key={assignment.submissionId} className="border-b hover:bg-gray-50">
+                <td className="py-3 px-4 font-medium">Assignment {assignment.assignmentId}</td>
+                <td className="py-3 px-4">
+                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                    assignment.submissionStatus === 'SUBMITTED' 
+                      ? 'bg-green-100 text-green-800'
+                      : assignment.submissionStatus === 'DRAFT'
+                      ? 'bg-yellow-100 text-yellow-800'
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {assignment.submissionStatus?.toLowerCase() || 'empty'}
+                  </span>
+                </td>
+                <td className="py-3 px-4">
+                  {editingAssignment === assignment.submissionId ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={tempGrade}
+                        onChange={(e) => setTempGrade(e.target.value)}
+                        className="w-20 px-2 py-1 border rounded text-sm"
+                        disabled={isSaving}
+                      />
+                      <button
+                        onClick={() => handleGradeUpdate(assignment.submissionId!, parseInt(tempGrade))}
+                        disabled={isSaving || !tempGrade}
+                        className="text-green-600 hover:text-green-800"
+                      >
+                        <FontAwesomeIcon icon={faSave} />
+                      </button>
+                      <button
+                        onClick={() => setEditingAssignment(null)}
+                        disabled={isSaving}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <FontAwesomeIcon icon={faTimes} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {assignment.grade !== null && assignment.grade !== undefined ? (
+                        <StudentGrade grade={assignment.grade} size="sm" />
+                      ) : (
+                        <span className="text-gray-500">Not graded</span>
+                      )}
+                    </div>
+                  )}
+                </td>
+                <td className="py-3 px-4 text-sm text-gray-600">
+                  {assignment.submittedAt 
+                    ? new Date(assignment.submittedAt).toLocaleDateString()
+                    : 'Not submitted'
+                  }
+                </td>
+                <td className="py-3 px-4">
+                  {editingAssignment !== assignment.submissionId && (
+                    <button
+                      onClick={() => {
+                        setEditingAssignment(assignment.submissionId!);
+                        setTempGrade(assignment.grade?.toString() || '');
+                      }}
+                      className="hover:underline"
+                      style={{ color: '#8D0B41' }}
+                    >
+                      <FontAwesomeIcon icon={faEdit} className="mr-1" />
+                      Edit Grade
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const ProgressContent = () => (
+    <div className="lms-card">
+      <h3 className="text-lg font-semibold mb-4">Weekly Materials Progress</h3>
+      {progress.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-gray-500 text-lg">No weekly materials found for this student.</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {progress.map((unit) => (
+            <div key={unit.unitCode} className="border rounded-lg p-4">
+              <h4 className="text-lg font-semibold mb-4 flex items-center">
+                <span 
+                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white mr-3"
+                  style={{ border: '1px solid #8D0B41', color: '#8D0B41' }}
+                >
+                  {unit.unitCode}
+                </span>
+                Unit Progress
+              </h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map((weekNum) => {
+                  const weekKey = `week${weekNum}Material` as keyof StudentProgress;
+                  const isCompleted = unit[weekKey] === 'DONE';
+                  const editKey = `${unit.unitCode}-week${weekNum}`;
+                  const isEditing = editingProgress === editKey;
+                  
+                  return (
+                    <div key={weekNum} className="border rounded-lg p-3 hover:bg-gray-50">
+                      <div className="flex items-center justify-between mb-2">
+                        <h5 className="font-medium">Week {weekNum}</h5>
+                        {!isEditing && (
+                          <button
+                            onClick={() => setEditingProgress(editKey)}
+                            className="text-xs hover:underline"
+                            style={{ color: '#8D0B41' }}
+                          >
+                            <FontAwesomeIcon icon={faEdit} />
+                          </button>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        {isEditing ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleProgressUpdate(unit.unitCode, weekNum, true)}
+                              disabled={isSaving}
+                              className={`p-1 rounded ${isCompleted ? 'text-green-600' : 'text-gray-400 hover:text-green-600'}`}
+                            >
+                              <FontAwesomeIcon icon={faCheckCircle} />
+                            </button>
+                            <button
+                              onClick={() => handleProgressUpdate(unit.unitCode, weekNum, false)}
+                              disabled={isSaving}
+                              className={`p-1 rounded ${!isCompleted ? 'text-red-600' : 'text-gray-400 hover:text-red-600'}`}
+                            >
+                              <FontAwesomeIcon icon={faTimesCircle} />
+                            </button>
+                            <button
+                              onClick={() => setEditingProgress(null)}
+                              disabled={isSaving}
+                              className="text-gray-500 hover:text-gray-700"
+                            >
+                              <FontAwesomeIcon icon={faTimes} />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <FontAwesomeIcon 
+                              icon={isCompleted ? faCheckCircle : faTimesCircle}
+                              className={isCompleted ? 'text-green-600' : 'text-red-600'}
+                            />
+                            <span className={`text-sm font-medium ${isCompleted ? 'text-green-600' : 'text-red-600'}`}>
+                              {isCompleted ? 'Done' : 'Not Done'}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
+    </div>
+  );
 
-      {/* Statistics Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-          <div className="text-xl font-bold mb-1" style={{ color: 'var(--primary-red)' }}>
-            {stats.submittedCount}/{stats.totalAssignments}
+  // Define tabs
+  const tabs: TabItem[] = [
+    {
+      id: 'overview',
+      label: 'Overview',
+      content: <OverviewContent />
+    },
+    {
+      id: 'assignments',
+      label: 'Assignments',
+      badge: assignments.length,
+      content: <AssignmentsContent />
+    },
+    {
+      id: 'progress',
+      label: 'Weekly Materials',
+      badge: `${stats.completedWeeks}/${stats.totalWeeks}`,
+      content: <ProgressContent />
+    }
+  ];
+
+  return (
+    <div className="max-w-7xl mx-auto px-6 py-8">
+      {/* Header */}
+      <div className="mb-8">
+        <button 
+          onClick={() => router.back()}
+          className="lms-button-secondary mb-4"
+        >
+          <FontAwesomeIcon icon={faArrowLeft} className="mr-2" />
+          Back to Students
+        </button>
+
+        {/* Success Message */}
+        {successMessage && (
+          <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+            ✅ {successMessage}
           </div>
-          <p className="text-sm text-gray-600">Assignments</p>
-        </div>
+        )}
         
-        <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-          <div className="text-xl font-bold mb-1" style={{ color: 'var(--primary-red)' }}>
-            <span className={`${
-              stats.averageGrade >= 80 ? 'text-green-600' : 
-              stats.averageGrade >= 60 ? 'text-yellow-600' : 'text-red-600'
-            }`}>
-              {stats.averageGrade ? `${stats.averageGrade}%` : 'No grades'}
-            </span>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold mb-2" style={{ color: 'var(--text-black)' }}>
+              {student.firstName} {student.lastName}
+            </h1>
+            <div className="flex items-center gap-4 text-lg text-gray-600">
+              <span>ID: {student.id}</span>
+              <span>•</span>
+              <span>{student.email}</span>
+              <span>•</span>
+              <span 
+                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white"
+                style={{ border: '1px solid #8D0B41', color: '#8D0B41' }}
+              >
+                {student.courseCode}
+              </span>
+              <span>•</span>
+              <span>Year {student.year}</span>
+            </div>
           </div>
-          <p className="text-sm text-gray-600">Overall Grade</p>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-          <div className="text-xl font-bold mb-1" style={{ color: 'var(--primary-red)' }}>
-            {stats.completedWeeks}/{stats.totalWeeks}
+          
+          <div className="text-right">
+            <div className="mb-2">
+              <StudentGrade 
+                grade={stats.averageGrade} 
+                size="lg"
+                showPercentage={true}
+                showNoGradesText={true}
+              />
+            </div>
+            <p className="text-sm text-gray-600">Overall Grade</p>
           </div>
-          <p className="text-sm text-gray-600">Progress</p>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-          <div className="text-xl font-bold mb-1" style={{ color: 'var(--primary-red)' }}>
-            {stats.totalWeeks > 0 ? Math.round((stats.completedWeeks / stats.totalWeeks) * 100) : 0}%
-          </div>
-          <p className="text-sm text-gray-600">Completion</p>
         </div>
       </div>
 

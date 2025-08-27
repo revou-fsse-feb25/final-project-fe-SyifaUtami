@@ -1,270 +1,262 @@
 'use client';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import DataTable, { TableColumn } from '../../components/dataTable';
 import SearchBar from '../../components/searchBar';
-import StatCard from '../../components/statCard';
-import { 
-  Student, 
-  StudentWithGrade, 
-  Course, 
-  FilterOption, 
-} from '../../../types';
+import DataTable, { TableColumn } from '../../components/dataTable';
+import StudentGrade from '../../components/studentGrade';
+import { Student, StudentWithGrade, Course, FilterOption } from '../../../types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://imajine-uni-api-production.up.railway.app';
 
 export default function CoordinatorStudentsPage() {
+  const router = useRouter();
   const [students, setStudents] = useState<StudentWithGrade[]>([]);
+  const [filteredStudents, setFilteredStudents] = useState<StudentWithGrade[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchFilters, setSearchFilters] = useState<Record<string, string>>({});
-  const [sortOrder, setSortOrder] = useState<'name' | 'highest' | 'lowest'>('name');
-  const [stats, setStats] = useState({ total: 0, coursesCount: 0, avgGrade: 0 });
-  
-  const router = useRouter();
+  const [sortOrder, setSortOrder] = useState<'highest' | 'lowest' | 'name'>('name');
 
-  // Helper function to safely get course name
+  // Memoized function to get course name from course code
   const getCourseName = useCallback((courseCode: string | null): string => {
     if (!courseCode) return 'No Course';
     const course = courses.find(c => c.code === courseCode);
     return course ? course.name : courseCode;
   }, [courses]);
 
-  // Fetch data from Railway backend
-  const fetchData = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
+  // Memoized filter options generation
+  const filterOptions = useMemo(() => {
+    if (!Array.isArray(students) || students.length === 0) return [];
+    
+    // Get unique courses from students and match with course data
+    const uniqueCourseCodes = [...new Set(students.map(s => s.courseCode).filter(Boolean))].sort();
+    const courseOptions = uniqueCourseCodes.map(code => ({
+      value: code as string,
+      label: getCourseName(code)
+    }));
 
-      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No authentication token found');
+    // Get unique years
+    const uniqueYears = [...new Set(students.map(s => s.year).filter(Boolean))].sort((a, b) => (b || 0) - (a || 0));
+    const yearOptions = uniqueYears.map(year => ({
+      value: year!.toString(),
+      label: year!.toString()
+    }));
+
+    return [
+      {
+        key: 'course',
+        label: 'Course',
+        options: courseOptions
+      },
+      {
+        key: 'year',
+        label: 'Year', 
+        options: yearOptions
+      },
+      {
+        key: 'sort',
+        label: 'Sort by Grade',
+        options: [
+          { value: 'highest', label: 'Highest Grade First' },
+          { value: 'lowest', label: 'Lowest Grade First' },
+          { value: 'name', label: 'Name (A-Z)' }
+        ]
       }
+    ];
+  }, [students, courses, getCourseName]);
 
-      const [studentsResponse, coursesResponse] = await Promise.all([
-        fetch(`${API_BASE_URL}/students/with-grades`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        }),
-        fetch(`${API_BASE_URL}/courses`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        })
-      ]);
-
-      if (!studentsResponse.ok || !coursesResponse.ok) {
-        if (studentsResponse.status === 401 || coursesResponse.status === 401) {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          localStorage.removeItem('userType');
-          throw new Error('Session expired. Please log in again.');
-        }
-        throw new Error('Failed to fetch data');
-      }
-
-      const studentsData = await studentsResponse.json();
-      const coursesData = await coursesResponse.json();
-
-      // Handle different response formats
-      const studentsList = studentsData.success ? studentsData.data : (studentsData.students || studentsData);
-      const coursesList = coursesData.success ? coursesData.data : (coursesData.courses || coursesData);
-
-      setStudents(studentsList || []);
-      setCourses(coursesList || []);
-
-      // Calculate stats
-      const totalStudents = studentsList?.length || 0;
-      const uniqueCourses = [...new Set((studentsList || []).map((s: Student) => s.courseCode).filter(Boolean))].length;
-      const gradesArray = (studentsList || [])
-        .map((s: StudentWithGrade) => s.averageGrade)
-        .filter((grade: number) => grade != null && grade > 0);
-      
-      const avgGrade = gradesArray.length > 0 
-        ? Math.round(gradesArray.reduce((sum: number, grade: number) => sum + grade, 0) / gradesArray.length)
-        : 0;
-
-      setStats({
-        total: totalStudents,
-        coursesCount: uniqueCourses,
-        avgGrade
-      });
-
-    } catch (err) {
-      console.error('Fetch error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // Fetch all students with grade data using Railway API
   useEffect(() => {
-    fetchData();
+    const fetchStudents = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+        if (!token) {
+          throw new Error('No authentication token found. Please log in again.');
+        }
+
+        const headers = {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        };
+
+        // Fetch students with grades and courses in parallel
+        const [studentsResponse, coursesResponse] = await Promise.all([
+          fetch(`${API_BASE_URL}/students/with-grades`, { headers }),
+          fetch(`${API_BASE_URL}/courses`, { headers })
+        ]);
+
+        if (!studentsResponse.ok || !coursesResponse.ok) {
+          if (studentsResponse.status === 401 || coursesResponse.status === 401) {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('userType');
+            throw new Error('Session expired. Please log in again.');
+          }
+          throw new Error('Failed to fetch data');
+        }
+
+        const studentsData = await studentsResponse.json();
+        const coursesData = await coursesResponse.json();
+
+        // Handle different response formats with safety checks
+        let studentsList;
+        if (studentsData.data && Array.isArray(studentsData.data)) {
+          studentsList = studentsData.data;
+        } else if (studentsData.success && Array.isArray(studentsData.data)) {
+          studentsList = studentsData.data;
+        } else if (studentsData.students && Array.isArray(studentsData.students)) {
+          studentsList = studentsData.students;
+        } else if (Array.isArray(studentsData)) {
+          studentsList = studentsData;
+        } else {
+          studentsList = [];
+        }
+
+        let coursesList;
+        if (Array.isArray(coursesData)) {
+          coursesList = coursesData;
+        } else if (coursesData.data && Array.isArray(coursesData.data)) {
+          coursesList = coursesData.data;
+        } else if (coursesData.success && Array.isArray(coursesData.data)) {
+          coursesList = coursesData.data;
+        } else if (coursesData.courses && Array.isArray(coursesData.courses)) {
+          coursesList = coursesData.courses;
+        } else {
+          coursesList = [];
+        }
+
+        // Update all state
+        setCourses(coursesList);
+        setStudents(studentsList);
+        setFilteredStudents(studentsList);
+        
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load students');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStudents();
   }, []);
 
-  // Filter and sort students
-  const filteredAndSortedStudents = useMemo(() => {
-    let filtered = students;
+  // Memoized search handler
+  const handleSearch = useCallback((query: string, filters: Record<string, string>) => {
+    if (!Array.isArray(students) || students.length === 0) {
+      setFilteredStudents([]);
+      return;
+    }
 
-    // Apply search filter
-    if (searchQuery.trim()) {
+    let filtered = [...students];
+
+    // Text search
+    if (query && query.trim()) {
+      const searchLower = query.toLowerCase().trim();
       filtered = filtered.filter(student => {
-        const fullName = `${student.firstName} ${student.lastName || ''}`.toLowerCase();
-        const email = (student.email || '').toLowerCase();
-        const courseCode = (student.courseCode || '').toLowerCase();
-        const query = searchQuery.toLowerCase();
+        if (!student) return false;
         
-        return fullName.includes(query) || 
-               email.includes(query) || 
-               courseCode.includes(query);
+        const firstName = (student.firstName || '').toString().toLowerCase();
+        const lastName = (student.lastName || '').toString().toLowerCase();
+        const id = (student.id || '').toString().toLowerCase();
+        const email = (student.email || '').toString().toLowerCase();
+        const fullName = `${student.firstName || ''} ${student.lastName || ''}`.toLowerCase().trim();
+        
+        return firstName.includes(searchLower) ||
+               lastName.includes(searchLower) ||
+               id.includes(searchLower) ||
+               email.includes(searchLower) ||
+               fullName.includes(searchLower);
       });
     }
 
-    // Apply filters
-    Object.entries(searchFilters).forEach(([key, value]) => {
-      if (value && value !== 'all') {
-        switch (key) {
-          case 'course':
-            filtered = filtered.filter(student => student.courseCode === value);
-            break;
-          case 'year':
-            filtered = filtered.filter(student => student.year?.toString() === value);
-            break;
-          case 'performance':
-            filtered = filtered.filter(student => {
-              const grade = student.averageGrade || 0;
-              switch (value) {
-                case 'excellent': return grade >= 90;
-                case 'good': return grade >= 70 && grade < 90;
-                case 'average': return grade >= 50 && grade < 70;
-                case 'poor': return grade < 50;
-                default: return true;
-              }
-            });
-            break;
-        }
+    // Course filter
+    if (filters.course) {
+      filtered = filtered.filter(student => student.courseCode === filters.course);
+    }
+
+    // Year filter
+    if (filters.year) {
+      filtered = filtered.filter(student => student.year?.toString() === filters.year);
+    }
+
+    // Sort
+    const sortBy = filters.sort || sortOrder;
+    setSortOrder(sortBy as 'highest' | 'lowest' | 'name');
+
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'highest':
+          return (b.averageGrade || 0) - (a.averageGrade || 0);
+        case 'lowest':
+          return (a.averageGrade || 0) - (b.averageGrade || 0);
+        case 'name':
+        default:
+          const fullNameA = `${a.firstName || ''} ${a.lastName || ''}`;
+          const fullNameB = `${b.firstName || ''} ${b.lastName || ''}`;
+          return fullNameA.localeCompare(fullNameB);
       }
     });
 
-    // Apply sorting
-    switch (sortOrder) {
-      case 'highest':
-        return filtered.sort((a, b) => (b.averageGrade || 0) - (a.averageGrade || 0));
-      case 'lowest':
-        return filtered.sort((a, b) => (a.averageGrade || 0) - (b.averageGrade || 0));
-      case 'name':
-      default:
-        return filtered.sort((a, b) => {
-          const nameA = `${a.firstName} ${a.lastName || ''}`.toLowerCase();
-          const nameB = `${b.firstName} ${b.lastName || ''}`.toLowerCase();
-          return nameA.localeCompare(nameB);
-        });
-    }
-  }, [students, searchQuery, searchFilters, sortOrder]);
+    setFilteredStudents(filtered);
+  }, [students, sortOrder]);
 
-  // Filter options for search bar
-  const filterOptions: FilterOption[] = [
+  // Memoized table columns - removed submissions column
+  const studentColumns: TableColumn<StudentWithGrade>[] = useMemo(() => [
     {
-      key: 'course',
+      key: 'id',
+      label: 'Student ID',
+      className: 'font-medium'
+    },
+    {
+      key: 'firstName',
+      label: 'Name',
+      render: (student) => `${student.firstName || ''} ${student.lastName || ''}`
+    },
+    {
+      key: 'email',
+      label: 'Email',
+      className: 'text-gray-600'
+    },
+    {
+      key: 'courseCode',
       label: 'Course',
-      options: [
-        { value: 'all', label: 'All Courses' },
-        ...Array.from(new Set(students.map(s => s.courseCode).filter(Boolean)))
-          .map(courseCode => ({
-            value: courseCode as string,
-            label: getCourseName(courseCode as string)
-          }))
-      ]
+      render: (student) => (
+        <span 
+          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white"
+          style={{ 
+            border: '1px solid #8D0B41',
+            color: '#8D0B41'
+          }}
+        >
+          {student.courseCode || 'No Course'}
+        </span>
+      )
     },
     {
       key: 'year',
       label: 'Year',
-      options: [
-        { value: 'all', label: 'All Years' },
-        ...Array.from(new Set(students.map(s => s.year).filter(Boolean)))
-          .map(year => ({ value: year!.toString(), label: `Year ${year}` }))
-      ]
+      render: (student) => student.year || 'N/A'
     },
     {
-      key: 'performance',
-      label: 'Performance',
-      options: [
-        { value: 'all', label: 'All Performance' },
-        { value: 'excellent', label: 'Excellent (90%+)' },
-        { value: 'good', label: 'Good (70-89%)' },
-        { value: 'average', label: 'Average (50-69%)' },
-        { value: 'poor', label: 'Poor (<50%)' }
-      ]
-    }
-  ];
-
-  const handleSearch = (query: string, filters: Record<string, string>) => {
-    setSearchQuery(query);
-    setSearchFilters(filters);
-  };
-
-  // Table columns
-  const columns: TableColumn<StudentWithGrade>[] = [
-    {
-      key: 'name',
-      label: 'Name',
-      render: (student: StudentWithGrade) => (
-        <div>
-          <div className="font-medium" style={{ color: 'var(--text-black)' }}>
-            {student.firstName} {student.lastName || ''}
-          </div>
-          <div className="text-sm text-gray-500">{student.email || 'No email'}</div>
-        </div>
-      )
-    },
-    {
-      key: 'course',
-      label: 'Course',
-      render: (student: StudentWithGrade) => (
-        <div>
-          <div className="font-medium" style={{ color: 'var(--text-black)' }}>
-            {getCourseName(student.courseCode)}
-          </div>
-          <div className="text-sm text-gray-500">
-            Year {student.year || 'N/A'}
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'performance',
-      label: 'Performance',
-      render: (student: StudentWithGrade) => (
-        <div className="text-center">
-          <div className={`text-lg font-bold ${
-            (student.averageGrade || 0) >= 80 ? 'text-green-600' : 
-            (student.averageGrade || 0) >= 60 ? 'text-yellow-600' : 'text-red-600'
-          }`}>
-            {student.averageGrade ? `${student.averageGrade}%` : 'No grades'}
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'submissions',
-      label: 'Submissions',
-      render: (student: StudentWithGrade) => (
-        <div className="text-center">
-          <div className="text-sm font-medium">
-            {student.submittedCount || 0}/{student.totalSubmissions || 0}
-          </div>
-          <span className="text-xs text-gray-500">
-            {student.totalSubmissions > 0 
-              ? Math.round(((student.submittedCount || 0) / student.totalSubmissions) * 100)
-              : 0}% completed
-          </span>
-        </div>
+      key: 'averageGrade',
+      label: 'Average Grade',
+      render: (student) => (
+        <StudentGrade 
+          grade={student.averageGrade || 0}
+          showPercentage={true}
+          showNoGradesText={true}
+          size="md"
+        />
       )
     },
     {
       key: 'actions',
       label: 'Actions',
-      render: (student: StudentWithGrade) => (
+      render: (student) => (
         <button 
           onClick={(e) => {
             e.stopPropagation();
@@ -277,15 +269,18 @@ export default function CoordinatorStudentsPage() {
         </button>
       )
     }
-  ];
+  ], [router]);
 
   if (error) {
     return (
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-semibold mb-4 text-red-600">Error</h1>
-          <p className="text-lg text-gray-600 mb-4">{error}</p>
-          <button onClick={fetchData} className="lms-button-primary">
+          <h1 className="text-2xl font-semibold mb-4" style={{ color: 'var(--primary-red)' }}>Error Loading Students</h1>
+          <p className="text-lg text-gray-600 mb-6">{error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-6 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          >
             Try Again
           </button>
         </div>
@@ -298,75 +293,40 @@ export default function CoordinatorStudentsPage() {
       {/* Page Header */}
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-2" style={{ color: 'var(--text-black)' }}>
-          Students
+          Student Search
         </h1>
         <p className="text-lg text-gray-600">
           Search and manage student information
         </p>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <StatCard
-          title="Total Students"
-          value={stats.total}
-          icon="users"
-          isLoading={isLoading}
-          subtitle={!isLoading ? `${stats.coursesCount} courses` : undefined}
-        />
-        <StatCard
-          title="Active Courses"
-          value={stats.coursesCount}
-          icon="courses"
-          isLoading={isLoading}
-          subtitle="Available programs"
-        />
-        <StatCard
-          title="Average Grade"
-          value={stats.avgGrade ? `${stats.avgGrade}%` : 'N/A'}
-          icon="grade"
-          isLoading={isLoading}
-          subtitle="Overall performance"
-        />
-      </div>
+      {/* Search Bar */}
+      <SearchBar
+        placeholder="Search by name, student ID, or email..."
+        onSearch={handleSearch}
+        filters={filterOptions}
+        showFilters={true}
+        className="mb-8"
+      />
 
-      {/* Search and Filters */}
-      <div className="mb-6">
-        <SearchBar
-          onSearch={handleSearch}
-          placeholder="Search students by name, email, or course..."
-          filters={filterOptions}
-          showFilters={true}
-        />
-      </div>
-
-      {/* Sort Controls */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-4">
-          <span className="text-sm font-medium text-gray-700">Sort by:</span>
-          <select
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value as 'name' | 'highest' | 'lowest')}
-            className="px-3 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="name">Name (A-Z)</option>
-            <option value="highest">Highest Grade</option>
-            <option value="lowest">Lowest Grade</option>
-          </select>
-        </div>
-        
+      {/* Results Summary */}
+      <div className="flex justify-between items-center mb-6">
         <div className="text-sm text-gray-600">
-          Showing {filteredAndSortedStudents.length} of {students.length} students
+          Showing {filteredStudents.length} of {students.length} students
+        </div>
+        <div className="text-sm text-gray-600">
+          Sorted by: {sortOrder === 'highest' ? 'Highest Grade' : sortOrder === 'lowest' ? 'Lowest Grade' : 'Name'}
         </div>
       </div>
 
       {/* Students Table */}
       <DataTable
-        data={filteredAndSortedStudents}
-        columns={columns}
+        data={filteredStudents}
+        columns={studentColumns}
         isLoading={isLoading}
-        emptyMessage="No students found matching your search criteria."
-        onRowClick={(student: StudentWithGrade) => router.push(`/coordinator/students/${student.id}`)}
+        emptyMessage="Try adjusting your search or filters"
+        onRowClick={(student) => router.push(`/coordinator/students/${student.id}`)}
+        loadingRows={6}
       />
     </div>
   );
