@@ -19,7 +19,7 @@ import {
   faSignInAlt
 } from '@fortawesome/free-solid-svg-icons';
 import { authManager, type User } from '@/src/lib/auth';
-import { apiClient } from '@/src/lib/api';
+import { api } from '@/src/lib/api';
 import { Course, Unit } from '../../types';
 import LogoutButton from './logOut';
 
@@ -77,21 +77,56 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
   const fetchCoursesData = async () => {
     if (isLoadingCourses) return;
     
+    console.log('🔄 Navigation: Starting fetchCoursesData...');
+    console.log('👤 Navigation: User:', user);
+    console.log('🎓 Navigation: User Type:', userType);
+    
     try {
       setIsLoadingCourses(true);
-      const response = await apiClient.getAcademicData();
+      console.log('📡 Navigation: Calling apiClient.getAcademicData()...');
       
-      if (response?.success) {
-        setCoursesData({
-          courses: response.data.courses || [],
-          units: response.data.units || []
-        });
+      const response = await api.getAcademicData();
+      console.log('📦 Navigation: Raw response:', response);
+      
+      // Handle multiple response formats
+      let coursesArray = [];
+      let unitsArray = [];
+      
+      if (response?.success && response.data) {
+        // Wrapped response format: { success: true, data: { courses, units } }
+        coursesArray = response.data.courses || [];
+        unitsArray = response.data.units || [];
+        console.log('✅ Navigation: Using wrapped response format');
+      } else if (response && ((response as any).courses || (response as any).units)) {
+        // Direct response format: { courses, units }
+        coursesArray = (response as any).courses || [];
+        unitsArray = (response as any).units || [];
+        console.log('✅ Navigation: Using direct response format');
+      } else {
+        console.log('❌ Navigation: No valid data in response');
+        console.log('📦 Navigation: Full response structure:', JSON.stringify(response, null, 2));
       }
-    } catch (error) {
-      console.error('Failed to fetch courses:', error);
+      
+      console.log('📚 Navigation: Courses found:', coursesArray.length);
+      console.log('📖 Navigation: Units found:', unitsArray.length);
+      console.log('📚 Navigation: Courses data:', coursesArray);
+      console.log('📖 Navigation: Units data:', unitsArray);
+      
+      setCoursesData({
+        courses: coursesArray,
+        units: unitsArray
+      });
+      
+      console.log('✅ Navigation: CoursesData set successfully');
+      
+    } catch (error: any) {
+      console.error('❌ Navigation: Failed to fetch courses:', error);
+      console.error('❌ Navigation: Error details:', error?.message || 'Unknown error');
+      console.error('❌ Navigation: Error stack:', error?.stack || 'No stack trace');
       setCoursesData({ courses: [], units: [] });
     } finally {
       setIsLoadingCourses(false);
+      console.log('🏁 Navigation: fetchCoursesData completed');
     }
   };
 
@@ -110,20 +145,50 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
   };
 
   const getNavigationItems = (): NavigationItem[] => {
-    if (!user || !coursesData) return [];
+    console.log('🧭 Navigation: getNavigationItems called');
+    console.log('👤 Navigation: User exists?', !!user);
+    console.log('📊 Navigation: CoursesData exists?', !!coursesData);
+    console.log('📊 Navigation: CoursesData content:', coursesData);
+    
+    if (!user) {
+      console.log('❌ Navigation: No user, returning empty navigation');
+      return [];
+    }
+    
+    if (!coursesData) {
+      console.log('❌ Navigation: No coursesData, returning empty navigation');
+      return [];
+    }
+
+    console.log('🎓 Navigation: UserType:', userType);
+    console.log('📚 Navigation: Available courses:', coursesData.courses);
+    console.log('📖 Navigation: Available units:', coursesData.units);
 
     if (userType === 'student') {
+      console.log('👨‍🎓 Navigation: Processing student navigation');
+      console.log('🔍 Navigation: Looking for course with code:', user.courseCode);
+      
       const course = coursesData.courses.find(c => c.code === user.courseCode);
+      console.log('📚 Navigation: Found course:', course);
+      
       let units: Unit[] = [];
       
       if (course) {
-        units = course.units?.map(unitCode => 
-          coursesData.units.find(unit => unit.code === unitCode)
-        ).filter(Boolean) as Unit[] || 
-        coursesData.units.filter(unit => unit.courseCode === course.code);
+        // Try both methods to get units
+        if (course.units && course.units.length > 0) {
+          units = course.units.map(unitCode => 
+            coursesData.units.find(unit => unit.code === unitCode)
+          ).filter(Boolean) as Unit[];
+          console.log('📖 Navigation: Units from course.units:', units);
+        } else {
+          units = coursesData.units.filter(unit => unit.courseCode === course.code);
+          console.log('📖 Navigation: Units from filtering by courseCode:', units);
+        }
+      } else {
+        console.log('❌ Navigation: No course found for student');
       }
 
-      return [
+      const navigationItems = [
         {
           id: 'course',
           label: course ? `${course.name} (${course.code})` : 'My Course',
@@ -143,14 +208,24 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
           icon: faClipboardList
         }
       ];
+      
+      console.log('✅ Navigation: Student navigation items:', navigationItems);
+      return navigationItems;
     }
 
     if (userType === 'coordinator') {
-      const managedCourses = user.courseManaged?.map(courseCode => 
-        coursesData.courses.find(course => course.code === courseCode)
-      ).filter(Boolean) as Course[] || [];
+      console.log('👨‍💼 Navigation: Processing coordinator navigation');
+      console.log('🔍 Navigation: User courseManaged:', user.courseManaged);
+      
+      const managedCourses = user.courseManaged?.map(courseCode => {
+        const course = coursesData.courses.find(course => course.code === courseCode);
+        console.log(`🔍 Navigation: Looking for course ${courseCode}, found:`, course);
+        return course;
+      }).filter(Boolean) as Course[] || [];
+      
+      console.log('📚 Navigation: Managed courses:', managedCourses);
 
-      return [
+      const navigationItems = [
         {
           id: 'overview',
           label: 'Overview',
@@ -197,8 +272,12 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
           icon: faCog,
         }
       ];
+      
+      console.log('✅ Navigation: Coordinator navigation items:', navigationItems);
+      return navigationItems;
     }
 
+    console.log('❌ Navigation: Unknown userType, returning empty navigation');
     return [];
   };
 
@@ -313,7 +392,20 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
                   </div>
                 ) : (
                   /* Logged in navigation */
-                  getNavigationItems().map(item => renderNavigationItem(item))
+                  <>
+                    {console.log('🎨 Navigation: Rendering navigation items...')}
+                    {getNavigationItems().length > 0 ? (
+                      getNavigationItems().map(item => {
+                        console.log('🎨 Navigation: Rendering item:', item.label);
+                        return renderNavigationItem(item);
+                      })
+                    ) : (
+                      <div className="p-3 text-gray-500 text-sm">
+                        <p>No navigation items available</p>
+                        <p className="text-xs mt-1">Check console for debug info</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               

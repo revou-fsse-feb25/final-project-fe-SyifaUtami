@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { authManager, type User } from '@/src/lib/auth';
-import { Assignment, StudentSubmission, AssignmentWithSubmission, Unit, StudentProgress, Teacher } from '../../../../types';
+import { Assignment, StudentSubmission, AssignmentWithSubmission, Unit, StudentProgress } from '../../../../types';
 import AssignmentList from '../../../components/assignmentList';
 import ProgressBar from '../../../components/progressBar';
 
@@ -19,8 +19,6 @@ export default function StudentUnitDetailPage() {
   const [unit, setUnit] = useState<UnitWithProgress | null>(null);
   const [assignments, setAssignments] = useState<AssignmentWithSubmission[]>([]);
   const [progress, setProgress] = useState<StudentProgress | null>(null);
-  const [teacher, setTeacher] = useState<Teacher | null>(null);
-  const [coordinator, setCoordinator] = useState<Teacher | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,18 +61,6 @@ export default function StudentUnitDetailPage() {
         const unitResult = unitData.success ? unitData.data : unitData;
         setUnit(unitResult);
 
-        // Fetch teachers
-        const teachersResponse = await fetch(`${baseUrl}/teachers`, { headers });
-        if (teachersResponse.ok) {
-          const teachersResult = await teachersResponse.json();
-          const teachersData = teachersResult.success ? teachersResult.data : teachersResult;
-          
-          if (Array.isArray(teachersData)) {
-            // For demo, assign first teacher as unit teacher and second as coordinator
-            setTeacher(teachersData[0] || null);
-            setCoordinator(teachersData[1] || null);
-          }
-        }
 
         // Fetch assignments for this unit with submissions
         const assignmentsResponse = await fetch(
@@ -199,7 +185,6 @@ export default function StudentUnitDetailPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
-      {/* Unit Header - Matching your original design */}
       <div className="mb-8">
         <h1 className="text-5xl font-bold mb-3">{unit?.name || 'Unit Name'}</h1>
         <p className="text-2xl text-gray-600 mb-4">{unitCode}</p>
@@ -209,27 +194,6 @@ export default function StudentUnitDetailPage() {
         <p className="text-base text-gray-700 mb-8 leading-relaxed">
           {unit?.description || 'Unit description will appear here.'}
         </p>
-
-        {/* Teaching Team Box - Exact replica */}
-        <div className="lms-card mb-8">
-          <h3 className="text-2xl font-semibold mb-4">Teaching Team</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {teacher && (
-              <div>
-                <h4 className="text-lg font-medium text-gray-700 mb-2">Unit Teacher</h4>
-                <p className="text-base">{teacher.firstName} {teacher.lastName}</p>
-                <p className="text-sm text-gray-600">{teacher.email}</p>
-              </div>
-            )}
-            {coordinator && (
-              <div>
-                <h4 className="text-lg font-medium text-gray-700 mb-2">Course Coordinator</h4>
-                <p className="text-base">{coordinator.firstName} {coordinator.lastName}</p>
-                <p className="text-sm text-gray-600">{coordinator.email}</p>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Weekly Progress - Exact replica with custom progress bar */}

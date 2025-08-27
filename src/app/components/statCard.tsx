@@ -10,13 +10,14 @@ import {
   faChartLine, 
   faStar, 
   faLayerGroup,
-  faChartBar
+  faChartBar,
+  faClipboardCheck
 } from '@fortawesome/free-solid-svg-icons';
 
 interface StatCardProps {
   title: string;
   value: number | string;
-  icon?: 'users' | 'teachers' | 'courses' | 'assignments' | 'submissions' | 'progress' | 'grade' | 'units' | 'analytics';
+  icon?: 'users' | 'teachers' | 'courses' | 'assignments' | 'submissions' | 'progress' | 'grade' | 'units' | 'analytics' | 'clipboard-check';
   isLoading?: boolean;
   subtitle?: string;
   trend?: {
@@ -24,7 +25,7 @@ interface StatCardProps {
     isPositive: boolean;
     label?: string;
   };
-  color?: 'primary' | 'secondary' | 'success' | 'warning' | 'info';
+  color?: 'primary' | 'secondary' | 'dark' | 'border';
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
@@ -63,6 +64,8 @@ const StatCard: React.FC<StatCardProps> = ({
         return <FontAwesomeIcon icon={faStar} size={iconSize} style={{ color: iconColor }} />;
       case 'analytics':
         return <FontAwesomeIcon icon={faChartBar} size={iconSize} style={{ color: iconColor }} />;
+      case 'clipboard-check':
+        return <FontAwesomeIcon icon={faClipboardCheck} size={iconSize} style={{ color: iconColor }} />;
       default:
         return <FontAwesomeIcon icon={faChartBar} size={iconSize} style={{ color: iconColor }} />;
     }
@@ -74,12 +77,10 @@ const StatCard: React.FC<StatCardProps> = ({
         return 'var(--primary-red)';
       case 'secondary':
         return 'var(--primary-dark)';
-      case 'success':
-        return '#10b981';
-      case 'warning':
-        return '#f59e0b';
-      case 'info':
-        return '#3b82f6';
+      case 'dark':
+        return 'var(--primary-dark)';
+      case 'border':
+        return 'var(--border-color)';
       default:
         return 'var(--primary-red)';
     }
@@ -155,35 +156,68 @@ const StatCard: React.FC<StatCardProps> = ({
 
 export default StatCard;
 
-/* USAGE EXAMPLES:
+/* USAGE EXAMPLES with Brand Colors:
 
-// Basic usage
-<StatCard title="Students" value={150} icon="users" />
+// Primary (Red) - Main metrics
+<StatCard title="Students" value={150} icon="users" color="primary" />
+
+// Secondary/Dark - Secondary metrics  
+<StatCard title="Teachers" value={25} icon="teachers" color="secondary" />
+
+// Border color - Special emphasis
+<StatCard title="Course Progress" value={78} icon="progress" color="border" />
 
 // With loading state
-<StatCard title="Teachers" value={25} icon="teachers" isLoading={isLoading} />
+<StatCard title="Teachers" value={25} icon="teachers" isLoading={isLoading} color="dark" />
 
-// With subtitle and trend
+// With subtitle and trend (brand colors only)
 <StatCard 
   title="Course Progress" 
   value={78} 
   icon="progress"
   subtitle="Average across all courses"
   trend={{ value: 5, isPositive: true, label: "vs last month" }}
+  color="primary"
 />
 
-// Different sizes and colors
-<StatCard title="Assignments" value={45} icon="assignments" size="lg" color="success" />
+// Different sizes with brand colors
+<StatCard title="Assignments" value={45} icon="assignments" size="lg" color="border" />
 
-// For API integration
+// For your coordinator overview with proper brand colors:
 <StatCard
-  title="Students Enrolled"
-  value={metrics?.studentCount || 0}
+  title="Total Students"
+  value={metrics?.studentCount?.toString() || '0'}
   icon="users"
-  isLoading={isLoading}
-  subtitle={isLoading ? undefined : `${metrics?.courseCount} courses`}
+  color="primary"
 />
-
-// With FontAwesome icons
-<StatCard title="Analytics" value="View Details" icon="analytics" color="info" />
+<StatCard
+  title="Total Teachers"
+  value={metrics?.teacherCount?.toString() || '0'}
+  icon="teachers"  
+  color="secondary"
+/>
+<StatCard
+  title="Total Courses"
+  value={metrics?.courseCount?.toString() || '0'}
+  icon="courses"
+  color="dark"
+/>
+<StatCard
+  title="Avg Progress"
+  value={`${Math.round(metrics?.avgProgress || 0)}%`}
+  icon="progress"
+  color="border"
+/>
+<StatCard
+  title="Avg Grade"
+  value={metrics?.avgGrade?.toFixed(1) || '0.0'}
+  icon="grade"
+  color="primary"
+/>
+<StatCard
+  title="Submission Rate"
+  value={`${Math.round(metrics?.submissionRate || 0)}%`}
+  icon="clipboard-check"
+  color="secondary"
+/>
 */

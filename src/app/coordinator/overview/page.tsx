@@ -24,9 +24,12 @@ export default function CoordinatorOverview() {
       setIsLoading(true);
       setError(null);
 
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('token') || 
+                   localStorage.getItem('access_token') || 
+                   localStorage.getItem('authToken');
+      
       if (!token) {
-        throw new Error('No authentication token found');
+        throw new Error('No authentication token found. Please log in again.');
       }
 
       const response = await fetch(`${API_BASE_URL}/analytics/overview`, {
@@ -39,8 +42,9 @@ export default function CoordinatorOverview() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          // Token expired
           localStorage.removeItem('token');
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('authToken');
           localStorage.removeItem('user');
           localStorage.removeItem('userType');
           throw new Error('Session expired. Please log in again.');
@@ -50,11 +54,9 @@ export default function CoordinatorOverview() {
 
       const data = await response.json();
       
-      // The backend returns data in the format we need
       if (data.success && data.data) {
         setMetrics(data.data);
       } else {
-        // Handle direct response format
         setMetrics(data);
       }
 
@@ -107,24 +109,18 @@ export default function CoordinatorOverview() {
           value={metrics?.studentCount || 0}
           icon="users"
           isLoading={isLoading}
-          subtitle={!isLoading && metrics ? `Across ${metrics.courseCount} courses` : undefined}
-          color="primary"
         />
         <StatCard
           title="Faculty Teachers"
           value={metrics?.teacherCount || 0}
           icon="teachers"
           isLoading={isLoading}
-          subtitle={!isLoading ? "Active instructors" : undefined}
-          color="secondary"
         />
         <StatCard
           title="Total Courses"
           value={metrics?.courseCount || 0}
           icon="courses"
           isLoading={isLoading}
-          subtitle={!isLoading ? "Available programs" : undefined}
-          color="info"
         />
       </div>
 
@@ -136,53 +132,50 @@ export default function CoordinatorOverview() {
         
         {isLoading ? (
           <div className="space-y-6">
-            <div className="animate-pulse">
-              <div className="h-4 bg-gray-200 rounded mb-2"></div>
-              <div className="h-8 bg-gray-200 rounded"></div>
-            </div>
-            <div className="animate-pulse">
-              <div className="h-4 bg-gray-200 rounded mb-2"></div>
-              <div className="h-8 bg-gray-200 rounded"></div>
-            </div>
-            <div className="animate-pulse">
-              <div className="h-4 bg-gray-200 rounded mb-2"></div>
-              <div className="h-8 bg-gray-200 rounded"></div>
-            </div>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
+                <div className="h-3 bg-gray-200 rounded w-full"></div>
+              </div>
+            ))}
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-8">
+            {/* Average Student Progress */}
             <div>
               <ProgressBar
-                progress={metrics?.avgProgress || 0}
+                progress={Math.round(metrics?.avgProgress || 0)}
                 label="Average Student Progress"
                 size="lg"
-                isLoading={isLoading}
+                className="mb-2"
               />
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="text-sm text-gray-600">
                 Based on weekly materials and assignment completion
               </p>
             </div>
 
+            {/* Average Grade */}
             <div>
               <ProgressBar
-                progress={metrics?.avgGrade || 0}
+                progress={Math.round(metrics?.avgGrade || 0)}
                 label="Average Grade from Assignments"
                 size="lg"
-                isLoading={isLoading}
+                className="mb-2"
               />
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="text-sm text-gray-600">
                 Average score across all submitted assignments
               </p>
             </div>
 
+            {/* Submission Rate */}
             <div>
               <ProgressBar
-                progress={metrics?.submissionRate || 0}
+                progress={Math.round(metrics?.submissionRate || 0)}
                 label="Assignment Submission Rate"
                 size="lg"
-                isLoading={isLoading}
+                className="mb-2"
               />
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="text-sm text-gray-600">
                 Percentage of assignments submitted by students
               </p>
             </div>
@@ -190,12 +183,12 @@ export default function CoordinatorOverview() {
         )}
       </div>
 
-      {/* Refresh Section */}
-      <div className="mt-8 text-center">
-        <button
+      {/* Refresh Button */}
+      <div className="mt-8 flex justify-end">
+        <button 
           onClick={refetch}
           disabled={isLoading}
-          className="lms-button-secondary"
+          className="lms-button-secondary disabled:opacity-50"
         >
           {isLoading ? 'Refreshing...' : 'Refresh Data'}
         </button>

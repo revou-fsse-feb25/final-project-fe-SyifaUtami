@@ -3,24 +3,15 @@ import { FC } from 'react';
 import Link from 'next/link';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGraduationCap } from '@fortawesome/free-solid-svg-icons';
-
-interface Course {
-  code: string;
-  name: string;
-  units: string[];
-}
+import { Course } from '../../types'; // Use the main Course type
 
 interface CoordinatorCourseCardProps {
-  course: Course;
-  studentCount?: number;
-  unitCount?: number;
+  course: Course; // Now uses your actual Course type from types/index.ts
   className?: string;
 }
 
 const CoordinatorCourseCard: FC<CoordinatorCourseCardProps> = ({ 
   course, 
-  studentCount = 0,
-  unitCount = 0,
   className = '' 
 }) => {
   return (
@@ -43,23 +34,6 @@ const CoordinatorCourseCard: FC<CoordinatorCourseCardProps> = ({
             <p className="text-sm text-gray-600">
               {course.code}
             </p>
-          </div>
-          
-          {/* Course Stats */}
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <div className="text-center">
-              <p className="text-lg font-bold" style={{ color: 'var(--primary-red)' }}>
-                {studentCount}
-              </p>
-              <p className="text-xs text-gray-600">Students</p>
-            </div>
-            
-            <div className="text-center">
-              <p className="text-lg font-bold" style={{ color: 'var(--primary-red)' }}>
-                {unitCount}
-              </p>
-              <p className="text-xs text-gray-600">Units</p>
-            </div>
           </div>
         </div>
       </div>

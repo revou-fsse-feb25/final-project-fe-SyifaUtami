@@ -1,5 +1,4 @@
-
-import { apiClient } from './api';
+import { api } from './api';
 
 interface User {
   id: string;
@@ -115,7 +114,7 @@ class AuthManager {
     userType: 'student' | 'coordinator' 
   }): Promise<{ success: boolean; message?: string }> {
     try {
-      const response = await apiClient.login(credentials);
+      const response = await api.login(credentials);
       
       // Backend returns { success: true, user, userType, access_token, refresh_token, expires_in }
       if (response.success) {
@@ -151,7 +150,7 @@ class AuthManager {
 
   async logout(): Promise<void> {
     try {
-      await apiClient.logout();
+      await api.logout();
     } catch (error) {
       console.error('Logout API call failed:', error);
       // Continue with local logout even if API call fails
@@ -162,6 +161,7 @@ class AuthManager {
     }
   }
 
+  // FIXED: Use apiClient's public method instead of private method
   async refreshToken(): Promise<boolean> {
     try {
       const refreshToken = localStorage.getItem('refresh_token');
@@ -169,14 +169,34 @@ class AuthManager {
         throw new Error('No refresh token available');
       }
 
-      const response = await apiClient.refreshToken(refreshToken);
+      // Make the refresh request directly using fetch (same as apiClient does internally)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://imajine-uni-api-production.up.railway.app'}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Token refresh failed');
+      }
+
+      const data = await response.json();
       
+      // FIXED: Check that data is not null and has the expected properties
+      if (!data || !data.access_token) {
+        throw new Error('Invalid refresh response');
+      }
+
       // Update token in auth state
-      this.authState.token = response.access_token;
+      this.authState.token = data.access_token;
       
-      // Update token in storage
-      localStorage.setItem('access_token', response.access_token);
-      localStorage.setItem('refresh_token', response.refresh_token);
+      // Update tokens in storage
+      localStorage.setItem('access_token', data.access_token);
+      if (data.refresh_token) {
+        localStorage.setItem('refresh_token', data.refresh_token);
+      }
 
       // Notify components about auth state change
       this.notifyAuthStateChange();
@@ -187,6 +207,42 @@ class AuthManager {
       this.clearAuth();
       this.notifyAuthStateChange();
       return false;
+    }
+  }
+
+  // Method to manually trigger token refresh (useful for debugging)
+  async forceRefreshToken(): Promise<boolean> {
+    console.log('🔄 Manually refreshing token...');
+    return this.refreshToken();
+  }
+
+  // Method to check if token needs refresh (expires in less than 5 minutes)
+  shouldRefreshToken(): boolean {
+    const token = this.getToken();
+    if (!token) return false;
+
+    try {
+      // Decode JWT payload
+      const parts = token.split('.');
+      if (parts.length !== 3) return false;
+
+      const payload = JSON.parse(atob(parts[1]));
+      const currentTime = Math.floor(Date.now() / 1000);
+      const timeUntilExpiry = payload.exp - currentTime;
+      
+      // Refresh if expires in less than 5 minutes (300 seconds)
+      return timeUntilExpiry < 300 && timeUntilExpiry > 0;
+    } catch (error) {
+      console.error('Error checking token expiry:', error);
+      return false;
+    }
+  }
+
+  // Auto-refresh token if needed
+  async autoRefreshIfNeeded(): Promise<void> {
+    if (this.shouldRefreshToken()) {
+      console.log('🔄 Auto-refreshing token (expires soon)');
+      await this.refreshToken();
     }
   }
 
@@ -217,6 +273,33 @@ class AuthManager {
   isStudent(): boolean {
     return this.authState.userType === 'student';
   }
+
+  // Debug method to check token status
+  debugTokens() {
+    const token = this.getToken();
+    const refreshToken = localStorage.getItem('refresh_token');
+    
+    console.log('🔍 Auth Debug Info:');
+    console.log(`Access Token: ${token ? 'EXISTS' : 'MISSING'}`);
+    console.log(`Refresh Token: ${refreshToken ? 'EXISTS' : 'MISSING'}`);
+    console.log(`Authenticated: ${this.isAuthenticated()}`);
+    console.log(`User Type: ${this.getUserType()}`);
+    
+    if (token) {
+      try {
+        const parts = token.split('.');
+        const payload = JSON.parse(atob(parts[1]));
+        const expiresAt = new Date(payload.exp * 1000);
+        const timeUntilExpiry = Math.round((payload.exp * 1000 - Date.now()) / 1000 / 60);
+        
+        console.log(`Token expires at: ${expiresAt.toLocaleString()}`);
+        console.log(`Time until expiry: ${timeUntilExpiry} minutes`);
+        console.log(`Should refresh: ${this.shouldRefreshToken()}`);
+      } catch (error) {
+        console.error('Error parsing token:', error);
+      }
+    }
+  }
 }
 
 // Export singleton instance
@@ -224,3 +307,9 @@ export const authManager = AuthManager.getInstance();
 
 // Export types
 export type { User, AuthState };
+
+// Add to window for debugging (browser console)
+if (typeof window !== 'undefined') {
+  (window as any).authManager = authManager;
+  (window as any).debugAuth = () => authManager.debugTokens();
+}
