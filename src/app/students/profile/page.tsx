@@ -7,8 +7,6 @@ import { apiClient } from '@/src/lib/api';
 import { Course, Unit } from '../../../types';
 import LogoutButton from '../../components/logOut';
 
-// Remove local interfaces - use the ones from types/index.ts
-
 const StudentProfile: FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
@@ -39,11 +37,18 @@ const StudentProfile: FC = () => {
         // Fetch user profile from API
         const profileResponse = await apiClient.getCurrentUser();
         
-        if (profileResponse.success) {
-          console.log('👤 Profile data received:', profileResponse.data);
+        console.log('👤 Raw profile response:', profileResponse);
+        
+        // Handle different response formats
+        if (profileResponse.success && profileResponse.data) {
+          console.log('👤 Profile data received (success format):', profileResponse.data);
           setProfile(profileResponse.data);
+        } else if (profileResponse.user) {
+          console.log('👤 Profile data received (direct format):', profileResponse.user);
+          setProfile(profileResponse.user);
         } else {
-          throw new Error('Failed to fetch profile data');
+          console.log('Profile response:', profileResponse);
+          throw new Error('Failed to fetch profile data - unexpected response format');
         }
 
         // Fetch academic data for course and units
@@ -65,9 +70,11 @@ const StudentProfile: FC = () => {
               unit.courseCode === studentCourse.code
             );
             setUnits(courseUnits);
+            console.log('📖 Found units for course:', courseUnits);
           }
         } else {
-          console.warn('Failed to fetch academic data');
+          console.warn('Failed to fetch academic data:', academicResponse);
+          // Don't throw error here, just log warning
         }
 
       } catch (err) {
@@ -137,96 +144,128 @@ const StudentProfile: FC = () => {
           <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--primary-dark)' }}>
             Student Profile
           </h1>
-          <p className="text-gray-600">Welcome to your academic dashboard</p>
         </div>
 
-        {/* Profile Information */}
-        <div className="lms-card">
-          <div className="flex items-center mb-6">
-            <div className="w-16 h-16 rounded-full flex items-center justify-center mr-6" style={{ backgroundColor: 'var(--primary-red)' }}>
-              <FontAwesomeIcon icon={faUser} className="text-2xl text-white" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold" style={{ color: 'var(--text-black)' }}>
-                {student.firstName} {student.lastName || ''}
-              </h2>
-              <p className="text-gray-600">{student.email}</p>
-              <p className="text-sm text-gray-500">Student ID: {student.id}</p>
-            </div>
+        {/* Personal Information Card */}
+        <div className="lms-card" style={{ backgroundColor: '#8D0B41', color: 'white' }}>
+          <div className="flex items-center mb-4">
+            <FontAwesomeIcon icon={faUser} className="mr-3" style={{ color: 'white' }} />
+            <h2 className="text-xl font-semibold" style={{ color: 'white' }}>
+              Personal Information
+            </h2>
           </div>
-
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h3 className="font-semibold mb-2" style={{ color: 'var(--primary-dark)' }}>
-                <FontAwesomeIcon icon={faGraduationCap} className="mr-2" />
-                Course Information
-              </h3>
-              {course ? (
-                <div>
-                  <p><strong>Course:</strong> {course.name}</p>
-                  <p><strong>Course Code:</strong> {course.code}</p>
-                  {student.year && <p><strong>Year:</strong> {student.year}</p>}
-                </div>
-              ) : (
-                <p className="text-gray-500">Course information not available</p>
-              )}
+              <label className="block text-sm font-medium mb-1" style={{ color: 'white' }}>
+                First Name
+              </label>
+              <div className="p-2 text-2xl font-bold" style={{ color: 'white' }}>
+                {student.firstName}
+              </div>
             </div>
-
+            
             <div>
-              <h3 className="font-semibold mb-2" style={{ color: 'var(--primary-dark)' }}>
-                <FontAwesomeIcon icon={faCalendarAlt} className="mr-2" />
-                Account Details
-              </h3>
-              <p><strong>Role:</strong> {student.role || 'Student'}</p>
-              <p><strong>Member since:</strong> {new Date(student.createdAt || '').toLocaleDateString() || 'Unknown'}</p>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'white' }}>
+                Last Name
+              </label>
+              <div className="p-2 text-2xl font-bold" style={{ color: 'white' }}>
+                {student.lastName || 'N/A'}
+              </div>
+            </div>
+            
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium mb-1" style={{ color: 'white' }}>
+                Email
+              </label>
+              <div className="p-2" style={{ color: 'white' }}>
+                {student.email}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Enrolled Units */}
+        {/* Academic Information Card */}
         <div className="lms-card">
-          <h3 className="text-xl font-semibold mb-4" style={{ color: 'var(--primary-dark)' }}>
-            <FontAwesomeIcon icon={faBookOpen} className="mr-2" />
-            Enrolled Units ({units.length})
-          </h3>
+          <div className="flex items-center mb-4">
+            <FontAwesomeIcon icon={faGraduationCap} className="mr-3" style={{ color: 'var(--primary-red)' }} />
+            <h2 className="text-xl font-semibold" style={{ color: 'var(--text-black)' }}>
+              Academic Information
+            </h2>
+          </div>
           
-          {units.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {isLoading ? (
+            <div className="flex items-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
+              <span>Loading course information...</span>
+            </div>
+          ) : error ? (
+            <div className="text-red-600">{error}</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-black)' }}>
+                  Course
+                </label>
+                <div className="p-2 text-2xl font-bold" style={{ color: 'var(--text-black)' }}>
+                  {course ? `${course.name} (${course.code})` : 'Course not found'}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-black)' }}>
+                  Year
+                </label>
+                <div className="p-2 flex items-center" style={{ color: 'var(--text-black)' }}>
+                  <FontAwesomeIcon icon={faCalendarAlt} className="mr-2 text-gray-500" />
+                  Year {student.year || 'N/A'}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Units Information Card */}
+        <div className="lms-card">
+          <div className="flex items-center mb-4">
+            <FontAwesomeIcon icon={faBookOpen} className="mr-3" style={{ color: 'var(--primary-red)' }} />
+            <h2 className="text-xl font-semibold" style={{ color: 'var(--text-black)' }}>
+              Enrolled Units
+            </h2>
+          </div>
+          
+          {isLoading ? (
+            <div className="flex items-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
+              <span>Loading units...</span>
+            </div>
+          ) : (
+            <div className="space-y-4">
               {units.map((unit) => (
-                <div 
-                  key={unit.id} 
-                  className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
-                >
-                  <h4 className="font-semibold mb-2" style={{ color: 'var(--primary-dark)' }}>
-                    {unit.name}
-                  </h4>
-                  <p className="text-sm text-gray-600 mb-2">{unit.code}</p>
-                  {unit.description && (
-                    <p className="text-sm text-gray-500 mb-2">{unit.description}</p>
-                  )}
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-500">
-                      Week: {unit.currentWeek || 1}
-                    </span>
-                    {unit.progressPercentage !== undefined && (
-                      <span className="text-green-600 font-medium">
-                        {unit.progressPercentage}% Complete
-                      </span>
-                    )}
+                <div key={unit.code}>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg" style={{ color: 'var(--text-black)' }}>
+                      {unit.name} ({unit.code})
+                    </h3>
+                    <div className="text-sm px-3 py-1 rounded-full" style={{ backgroundColor: 'var(--primary-dark)', color: 'white' }}>
+                      Week {unit.currentWeek || 1}
+                    </div>
                   </div>
                 </div>
               ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <FontAwesomeIcon icon={faBookOpen} className="text-4xl text-gray-400 mb-4" />
-              <p className="text-gray-500">No units enrolled yet</p>
+              
+              {units.length === 0 && !isLoading && (
+                <div className="text-center py-8">
+                  <FontAwesomeIcon icon={faBookOpen} className="text-4xl mb-4 text-gray-300" />
+                  <p className="text-gray-500">No units found for your course</p>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="lms-card text-center">
             <div className="text-2xl font-bold mb-2" style={{ color: 'var(--primary-dark)' }}>
               {units.length}
@@ -236,9 +275,9 @@ const StudentProfile: FC = () => {
           
           <div className="lms-card text-center">
             <div className="text-2xl font-bold mb-2" style={{ color: 'var(--primary-dark)' }}>
-              {student.year || 'N/A'}
+              Year {student.year || 'N/A'}
             </div>
-            <div className="text-sm text-gray-600">Academic Year</div>
+            <div className="text-sm text-gray-600">Current Year</div>
           </div>
           
           <div className="lms-card text-center">
@@ -246,13 +285,6 @@ const StudentProfile: FC = () => {
               {course?.code || 'N/A'}
             </div>
             <div className="text-sm text-gray-600">Course Code</div>
-          </div>
-          
-          <div className="lms-card text-center">
-            <div className="text-2xl font-bold mb-2" style={{ color: 'var(--primary-dark)' }}>
-              ACTIVE
-            </div>
-            <div className="text-sm text-gray-600">Status</div>
           </div>
         </div>
 

@@ -225,17 +225,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Debug Information */}
-          {debugInfo && (
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <details>
-                <summary className="text-sm text-gray-600 cursor-pointer">Debug Info</summary>
-                <pre className="text-xs bg-gray-100 p-3 mt-2 rounded overflow-auto">
-                  {debugInfo}
-                </pre>
-              </details>
-            </div>
-          )}
+         
         </div>
       </div>
     </div>

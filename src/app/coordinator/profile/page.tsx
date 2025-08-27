@@ -7,8 +7,6 @@ import { apiClient } from '@/src/lib/api';
 import { Course } from '../../../types';
 import LogoutButton from '../../components/logOut';
 
-// Remove local interface - use the ones from types/index.ts
-
 const CoordinatorProfile: FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [managedCourses, setManagedCourses] = useState<Course[]>([]);
@@ -77,38 +75,10 @@ const CoordinatorProfile: FC = () => {
     }
   }, [user]);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--card-background)' }}>
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{ borderColor: 'var(--primary-red)' }}></div>
-          <p style={{ color: 'var(--text-black)' }}>Loading profile...</p>
-        </div>
-      </div>
-    );
-  }
-
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--card-background)' }}>
         <p>Please log in to view your profile.</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--card-background)' }}>
-        <div className="text-center">
-          <p className="text-xl mb-4" style={{ color: 'var(--text-black)' }}>Error loading profile</p>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <button
-            onClick={fetchData}
-            className="lms-button-primary"
-          >
-            Try Again
-          </button>
-        </div>
       </div>
     );
   }
@@ -123,115 +93,159 @@ const CoordinatorProfile: FC = () => {
           <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--primary-dark)' }}>
             Coordinator Profile
           </h1>
-          <p className="text-gray-600">Academic Coordinator Dashboard</p>
         </div>
 
-        {/* Profile Information */}
-        <div className="lms-card">
-          <div className="flex items-center mb-6">
-            <div className="w-16 h-16 rounded-full flex items-center justify-center mr-6" style={{ backgroundColor: 'var(--primary-red)' }}>
-              <FontAwesomeIcon icon={faUser} className="text-2xl text-white" />
-            </div>
+        {/* Personal Information Card */}
+        <div className="lms-card" style={{ backgroundColor: '#8D0B41', color: 'white' }}>
+          <div className="flex items-center mb-4">
+            <FontAwesomeIcon icon={faUser} className="mr-3" style={{ color: 'white' }} />
+            <h2 className="text-xl font-semibold" style={{ color: 'white' }}>
+              Personal Information
+            </h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 px-4">
             <div>
-              <h2 className="text-2xl font-bold" style={{ color: 'var(--text-black)' }}>
-                {coordinator.firstName} {coordinator.lastName || ''}
-              </h2>
-              <p className="text-gray-600">{coordinator.email}</p>
-              {coordinator.title && (
-                <p className="text-sm text-gray-500">{coordinator.title}</p>
-              )}
+              <label className="block text-sm font-medium mb-1" style={{ color: 'white' }}>
+                First Name
+              </label>
+              <div className="p-2 text-2xl font-bold" style={{ color: 'white' }}>
+                {coordinator.firstName}
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'white' }}>
+                Last Name
+              </label>
+              <div className="p-2 text-2xl font-bold" style={{ color: 'white' }}>
+                {coordinator.lastName || 'N/A'}
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'white' }}>
+                ID
+              </label>
+              <div className="p-2" style={{ color: 'white' }}>
+                {coordinator.id}
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'white' }}>
+                Title
+              </label>
+              <div className="p-2" style={{ color: 'white' }}>
+                {coordinator.title || 'Academic Coordinator'}
+              </div>
+            </div>
+            
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium mb-1" style={{ color: 'white' }}>
+                Email
+              </label>
+              <div className="p-2" style={{ color: 'white' }}>
+                {coordinator.email}
+              </div>
             </div>
           </div>
+        </div>
 
+        {/* Access Information Card */}
+        <div className="lms-card">
+          <div className="flex items-center mb-4">
+            <FontAwesomeIcon icon={faShieldAlt} className="mr-3" style={{ color: 'var(--primary-red)' }} />
+            <h2 className="text-xl font-semibold" style={{ color: 'var(--text-black)' }}>
+              Access Information
+            </h2>
+          </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h3 className="font-semibold mb-2" style={{ color: 'var(--primary-dark)' }}>
-                <FontAwesomeIcon icon={faIdCard} className="mr-2" />
-                Personal Information
-              </h3>
-              <p><strong>Staff ID:</strong> {coordinator.id}</p>
-              <p><strong>Email:</strong> {coordinator.email}</p>
-              <p><strong>Position:</strong> {coordinator.title || 'Academic Coordinator'}</p>
-            </div>
-
-            <div>
-              <h3 className="font-semibold mb-2" style={{ color: 'var(--primary-dark)' }}>
-                <FontAwesomeIcon icon={faShieldAlt} className="mr-2" />
-                Access & Permissions
-              </h3>
-              <p><strong>Access Level:</strong> {coordinator.accessLevel?.toUpperCase() || 'COORDINATOR'}</p>
-              <p><strong>Managed Courses:</strong> {coordinator.courseManaged?.length || 0}</p>
-              <p><strong>Role:</strong> Course Coordinator</p>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-black)' }}>
+                Access Level
+              </label>
+              <div className="p-2 flex items-center" style={{ color: 'var(--text-black)' }}>
+                <FontAwesomeIcon icon={faIdCard} className="mr-2 text-gray-500" />
+                <span className="capitalize font-semibold">{coordinator.accessLevel || 'coordinator'}</span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Managed Courses */}
+        {/* Courses Managed Card */}
         <div className="lms-card">
-          <h3 className="text-xl font-semibold mb-4" style={{ color: 'var(--primary-dark)' }}>
-            <FontAwesomeIcon icon={faGraduationCap} className="mr-2" />
-            Managed Courses ({managedCourses.length})
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center">
+              <FontAwesomeIcon icon={faGraduationCap} className="mr-3" style={{ color: 'var(--primary-red)' }} />
+              <h2 className="text-xl font-semibold" style={{ color: 'var(--text-black)' }}>
+                Courses Managed
+              </h2>
+            </div>
+            {/* Debug info */}
+            <div className="text-xs text-gray-500">
+              {managedCourses.length} courses loaded
+            </div>
+          </div>
           
-          {managedCourses.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {isLoading ? (
+            <div className="flex items-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
+              <span>Loading courses...</span>
+            </div>
+          ) : error ? (
+            <div className="text-red-600">{error}</div>
+          ) : (
+            <div className="space-y-4">
               {managedCourses.map((course) => (
-                <div 
-                  key={course.id || course.code} 
-                  className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
-                >
-                  <h4 className="font-semibold mb-2" style={{ color: 'var(--primary-dark)' }}>
-                    {course.name}
-                  </h4>
-                  <p className="text-sm text-gray-600 mb-2">Code: {course.code}</p>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-500">
-                      Units: {course.units?.length || 0}
-                    </span>
-                    <span className="text-blue-600 font-medium">
-                      Active
-                    </span>
+                <div key={course.code} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                  <div>
+                    <h3 className="font-semibold text-lg" style={{ color: 'var(--text-black)' }}>
+                      {course.name}
+                    </h3>
+                    <p className="text-sm text-gray-600">Course Code: {course.code}</p>
+                  </div>
+                  <div className="text-sm px-3 py-1 rounded-full" style={{ backgroundColor: 'var(--primary-dark)', color: 'white' }}>
+                    {course.units?.length || 0} Units
                   </div>
                 </div>
               ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <FontAwesomeIcon icon={faGraduationCap} className="text-4xl text-gray-400 mb-4" />
-              <p className="text-gray-500">No courses assigned yet</p>
-              <p className="text-sm text-gray-400">Contact your administrator to assign courses</p>
+              
+              {managedCourses.length === 0 && !isLoading && (
+                <div className="text-center py-8">
+                  <FontAwesomeIcon icon={faBookOpen} className="text-4xl mb-4 text-gray-300" />
+                  <p className="text-gray-500">No courses assigned</p>
+                  <p className="text-xs text-gray-400 mt-2">
+                    Debug: courseManaged = {JSON.stringify(coordinator.courseManaged)}
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="lms-card text-center">
             <div className="text-2xl font-bold mb-2" style={{ color: 'var(--primary-dark)' }}>
               {managedCourses.length}
             </div>
-            <div className="text-sm text-gray-600">Courses</div>
+            <div className="text-sm text-gray-600">Courses Managed</div>
           </div>
           
           <div className="lms-card text-center">
             <div className="text-2xl font-bold mb-2" style={{ color: 'var(--primary-dark)' }}>
               {managedCourses.reduce((total, course) => total + (course.units?.length || 0), 0)}
             </div>
-            <div className="text-sm text-gray-600">Units</div>
+            <div className="text-sm text-gray-600">Total Units</div>
           </div>
           
           <div className="lms-card text-center">
             <div className="text-2xl font-bold mb-2" style={{ color: 'var(--primary-dark)' }}>
-              {coordinator.accessLevel?.toUpperCase() || 'COORDINATOR'}
+              {(coordinator.accessLevel || 'coordinator').toUpperCase()}
             </div>
             <div className="text-sm text-gray-600">Access Level</div>
-          </div>
-
-          <div className="lms-card text-center">
-            <div className="text-2xl font-bold mb-2" style={{ color: 'var(--primary-dark)' }}>
-              ACTIVE
-            </div>
-            <div className="text-sm text-gray-600">Status</div>
           </div>
         </div>
 
