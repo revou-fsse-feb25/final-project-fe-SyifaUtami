@@ -19,7 +19,7 @@ import {
   faSignInAlt
 } from '@fortawesome/free-solid-svg-icons';
 import { authManager, type User } from '@/src/lib/auth';
-import { api } from '@/src/lib/api';
+import { apiClient } from '@/src/lib/api';
 import { Course, Unit } from '../../types';
 import LogoutButton from './logOut';
 
@@ -85,7 +85,7 @@ const Navigation: React.FC<NavigationProps> = ({ children }) => {
       setIsLoadingCourses(true);
       console.log('📡 Navigation: Calling apiClient.getAcademicData()...');
       
-      const response = await api.getAcademicData();
+      const response = await apiClient.getAcademicData();
       console.log('📦 Navigation: Raw response:', response);
       
       // Handle multiple response formats

@@ -1,4 +1,4 @@
-import { api } from './api';
+import { apiClient } from './api';
 
 interface User {
   id: string;
@@ -114,7 +114,7 @@ class AuthManager {
     userType: 'student' | 'coordinator' 
   }): Promise<{ success: boolean; message?: string }> {
     try {
-      const response = await api.login(credentials);
+      const response = await apiClient.login(credentials);
       
       // Backend returns { success: true, user, userType, access_token, refresh_token, expires_in }
       if (response.success) {
@@ -150,7 +150,7 @@ class AuthManager {
 
   async logout(): Promise<void> {
     try {
-      await api.logout();
+      await apiClient.logout();
     } catch (error) {
       console.error('Logout API call failed:', error);
       // Continue with local logout even if API call fails

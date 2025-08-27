@@ -3,7 +3,7 @@ import { FC, useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUser, faGraduationCap, faBookOpen, faCalendarAlt, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import { authManager, type User } from '@/src/lib/auth';
-import { api } from '@/src/lib/api';
+import { apiClient } from '@/src/lib/api';
 import { Course, Unit } from '../../../types';
 import LogoutButton from '../../components/logOut';
 
@@ -37,7 +37,7 @@ const StudentProfile: FC = () => {
         console.log('🔄 Fetching student profile data...');
 
         // Fetch user profile from API
-        const profileResponse = await api.getCurrentUser();
+        const profileResponse = await apiClient.getCurrentUser();
         
         if (profileResponse.success) {
           console.log('👤 Profile data received:', profileResponse.data);
@@ -47,7 +47,7 @@ const StudentProfile: FC = () => {
         }
 
         // Fetch academic data for course and units
-        const academicResponse = await api.getAcademicData();
+        const academicResponse = await apiClient.getAcademicData();
         
         if (academicResponse.success) {
           console.log('📚 Academic data received:', academicResponse.data);
