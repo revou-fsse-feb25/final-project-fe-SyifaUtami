@@ -1,4 +1,5 @@
 // src/app/coordinator/manage-units/page.tsx
+// Fixed version with only unit management functionality
 'use client';
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -17,23 +18,20 @@ interface ManageUnitsData {
   teachers: Teacher[];
 }
 
-type ModalType = 'addCourse' | 'addUnit' | 'deleteCourse' | 'deleteUnit' | 'none';
+type ModalType = 'addUnit' | 'deleteUnit' | 'none';
 
 export default function ManageUnitsPage() {
   const [data, setData] = useState<ManageUnitsData | null>(null);
-  const [coordinators, setCoordinators] = useState<any[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Modal states
+  // Modal states - only unit operations
   const [modalType, setModalType] = useState<ModalType>('none');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   
-  // Delete states
-  const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
+  // Delete states - only unit deletion
   const [unitToDelete, setUnitToDelete] = useState<Unit | null>(null);
-  const [deleteMode, setDeleteMode] = useState<'none' | 'courses' | 'units'>('none');
+  const [deleteMode, setDeleteMode] = useState<'none' | 'units'>('none');
   const [successMessage, setSuccessMessage] = useState<string>('');
 
   // Helper function to show success message
@@ -42,7 +40,7 @@ export default function ManageUnitsPage() {
     setTimeout(() => setSuccessMessage(''), 3000);
   };
 
-  // Fetch all data needed for the page using API client
+  // Fetch data from API
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -52,54 +50,45 @@ export default function ManageUnitsPage() {
         console.log('🚀 Fetching manage units data from API...');
 
         // Fetch all required data from Railway API
-        const [
-          coursesResponse, 
-          unitsResponse, 
-          teachersResponse, 
-          studentsResponse,
-          assignmentsResponse
-        ] = await Promise.all([
+        const [coursesResponse, unitsResponse] = await Promise.all([
           apiClient.getCourses(),
-          apiClient.getUnits(),
-          apiClient.getTeachers(),
-          apiClient.getStudents({ includeData: true }),
-          apiClient.getAssignments()
+          apiClient.getUnits()
         ]);
+
+        console.log('📦 API Responses:', { coursesResponse, unitsResponse });
 
         // Handle different response formats from Railway API
         const courses = coursesResponse.success ? coursesResponse.data : coursesResponse;
-        const units = unitsResponse.success ? unitsResponse.data : unitsResponse;
-        const teachersResult = teachersResponse.success ? teachersResponse.data : teachersResponse;
-        const studentsData = studentsResponse.success ? studentsResponse.data : studentsResponse;
-        const assignments = assignmentsResponse.success ? assignmentsResponse.data : assignmentsResponse;
-
-        console.log('✅ API data fetched successfully:', {
-          courses: courses?.length || 0,
-          units: units?.length || 0,
-          teachers: teachersResult?.length || 0,
-          students: studentsData?.length || 0,
-          assignments: assignments?.length || 0
-        });
-
-        // Set up the data structure
-        setData({
-          courses: courses || [],
-          units: units || [],
-          allStudentProgress: studentsData?.progress || [],
-          assignments: assignments || [],
-          teachers: teachersResult || []
-        });
-
-        // Set coordinators and teachers for the dropdowns
-        const coordinatorsList = Array.isArray(teachersResult) 
-          ? teachersResult.filter((t: any) => t.role === 'COORDINATOR' || t.title === 'Coordinator')
-          : [];
         
-        setCoordinators(coordinatorsList);
-        setTeachers(teachersResult || []);
+        // Handle units response - it has a different structure with {data: Array}
+        let units;
+        if (unitsResponse.success) {
+          units = unitsResponse.data;
+        } else if (unitsResponse.data && Array.isArray(unitsResponse.data)) {
+          // Handle {data: Array} format
+          units = unitsResponse.data;
+        } else if (Array.isArray(unitsResponse)) {
+          units = unitsResponse;
+        } else {
+          units = [];
+        }
+
+        console.log('📊 Processed data:', {
+          courses: Array.isArray(courses) ? courses.length : 'not array',
+          units: Array.isArray(units) ? units.length : 'not array'
+        });
+
+        // Set the data
+        setData({
+          courses: Array.isArray(courses) ? courses : [],
+          units: Array.isArray(units) ? units : [],
+          allStudentProgress: [],
+          assignments: [],
+          teachers: []
+        });
 
       } catch (err) {
-        console.error('❌ Failed to fetch manage units data:', err);
+        console.error('❌ Error fetching data:', err);
         setError(err instanceof Error ? err.message : 'Failed to load data');
       } finally {
         setIsLoading(false);
@@ -108,18 +97,6 @@ export default function ManageUnitsPage() {
 
     fetchData();
   }, []);
-
-  // Handle course added
-  const handleCourseAdded = (newCourse: Course) => {
-    setData(prevData => {
-      if (!prevData) return prevData;
-      return {
-        ...prevData,
-        courses: [...prevData.courses, newCourse]
-      };
-    });
-    window.dispatchEvent(new CustomEvent('courseUpdated'));
-  };
 
   // Handle unit added
   const handleUnitAdded = (newUnit: Unit) => {
@@ -133,20 +110,6 @@ export default function ManageUnitsPage() {
     window.dispatchEvent(new CustomEvent('courseUpdated'));
   };
 
-  // Handle course deleted
-  const handleCourseDeleted = (deletedCourse: Course) => {
-    setData(prevData => {
-      if (!prevData) return prevData;
-      return {
-        ...prevData,
-        courses: prevData.courses.filter(c => c.code !== deletedCourse.code),
-        units: prevData.units.filter(u => u.courseCode !== deletedCourse.code)
-      };
-    });
-    resetDeleteMode();
-    window.dispatchEvent(new CustomEvent('courseUpdated'));
-  };
-
   // Handle unit deleted
   const handleUnitDeleted = (deletedUnit: Unit) => {
     setData(prevData => {
@@ -157,34 +120,29 @@ export default function ManageUnitsPage() {
       };
     });
     resetDeleteMode();
+    window.dispatchEvent(new CustomEvent('courseUpdated'));
   };
 
   // Reset delete mode
   const resetDeleteMode = () => {
     setDeleteMode('none');
+    setUnitToDelete(null);
   };
 
-  // Get units for a specific course with progress data
+  // Get units for a specific course
   const getUnitsForCourse = (courseCode: string) => {
-    if (!data) return [];
+    if (!data || !Array.isArray(data.units)) {
+      console.warn('Data or units array not available:', data);
+      return [];
+    }
     
     return data.units
       .filter(unit => unit.courseCode === courseCode)
-      .map(unit => {
-        const unitProgress = data.allStudentProgress.filter(progress => 
-          progress.unitCode === unit.code
-        );
-        
-        const unitAssignments = data.assignments.filter(assignment => 
-          assignment.unitCode === unit.code
-        );
-
-        return {
-          unit,
-          progress: unitProgress,
-          assignments: unitAssignments
-        };
-      });
+      .map(unit => ({
+        unit,
+        progress: [],
+        assignments: []
+      }));
   };
 
   if (isLoading) {
@@ -217,42 +175,32 @@ export default function ManageUnitsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
+
+
       {/* Page Header */}
       <div className="mb-8">
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-4xl font-bold mb-2" style={{ color: 'var(--text-black)' }}>
-              Manage Courses and Units
+              Manage Units
             </h1>
             <p className="text-lg text-gray-600">
-              Add, edit, and manage courses and their units
+              Add and manage units for your courses
             </p>
           </div>
 
-          {/* Action Controls */}
+          {/* Action Controls - Units only */}
           <div className="flex gap-3">
             <button 
               onClick={() => setDeleteMode(deleteMode === 'units' ? 'none' : 'units')}
               className={`px-4 py-2 rounded transition-colors ${
                 deleteMode === 'units' 
-                  ? 'text-white' 
+                  ? 'bg-gray-500 text-white' 
                   : 'text-white hover:bg-opacity-90'
               }`}
-              style={{ backgroundColor: 'var(--primary-red)' }}
+              style={{ backgroundColor: deleteMode === 'units' ? '' : 'var(--primary-red)' }}
             >
               {deleteMode === 'units' ? 'Cancel Delete Units' : 'Delete Units'}
-            </button>
-            
-            <button 
-              onClick={() => setDeleteMode(deleteMode === 'courses' ? 'none' : 'courses')}
-              className={`px-4 py-2 rounded transition-colors ${
-                deleteMode === 'courses' 
-                  ? 'text-white' 
-                  : 'text-white hover:bg-opacity-90'
-              }`}
-              style={{ backgroundColor: 'var(--primary-red)' }}
-            >
-              {deleteMode === 'courses' ? 'Cancel Delete Courses' : 'Delete Courses'}
             </button>
           </div>
         </div>
@@ -278,21 +226,6 @@ export default function ManageUnitsPage() {
                   <h2 className="text-2xl font-semibold" style={{ color: 'var(--text-black)' }}>
                     {course.name} ({course.code})
                   </h2>
-                  
-                  {/* Delete Course X Button */}
-                  {deleteMode === 'courses' && (
-                    <button
-                      onClick={() => {
-                        setCourseToDelete(course);
-                        setModalType('deleteCourse');
-                      }}
-                      className="ml-3 w-8 h-8 bg-white rounded-full hover:bg-gray-100 transition-colors flex items-center justify-center"
-                      style={{ color: 'var(--primary-red)' }}
-                      title="Delete Course"
-                    >
-                      <FontAwesomeIcon icon={faTimes} className="text-sm" />
-                    </button>
-                  )}
                 </div>
                 
                 <div className="flex items-center gap-3">
@@ -389,36 +322,26 @@ export default function ManageUnitsPage() {
         })}
       </div>
 
-      {/* Add New Course Section */}
-      <div className="bg-gray-50 p-6 rounded-lg mt-8">
-        <div className="text-center">
-          <h3 className="text-xl font-semibold mb-4" style={{ color: 'var(--text-black)' }}>
-            Add New Course
-          </h3>
-          <button 
-            onClick={() => setModalType('addCourse')}
-            className="lms-button-secondary"
-          >
-            <FontAwesomeIcon icon={faPlus} className="mr-2" />
-            Add New Course
-          </button>
+      {/* No courses message */}
+      {(!data?.courses || data.courses.length === 0) && (
+        <div className="text-center py-12">
+          <p className="text-gray-500 text-xl">No courses found.</p>
+          <p className="text-gray-400">Courses need to be created before you can add units.</p>
         </div>
-      </div>
+      )}
 
-      {/* Modals */}
+      {/* Unit Modals - Only unit operations */}
       <CourseUnitModals
         modalType={modalType}
-        onClose={() => setModalType('none')}
-        coordinators={coordinators}
-        teachers={teachers}
-        onCourseAdded={handleCourseAdded}
-        courseToDelete={courseToDelete}
-        onCourseDeleted={handleCourseDeleted}
+        onClose={() => {
+          setModalType('none');
+          setUnitToDelete(null);
+        }}
+        coordinators={[]}
         selectedCourse={selectedCourse}
         onUnitAdded={handleUnitAdded}
         unitToDelete={unitToDelete}
         onUnitDeleted={handleUnitDeleted}
-        allCourses={data?.courses || []}
         allUnits={data?.units || []}
         onSuccess={showSuccessMessage}
       />

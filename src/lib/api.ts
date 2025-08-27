@@ -39,9 +39,23 @@ class ApiClient {
   private getToken(): string | null {
     if (typeof window === 'undefined') return null;
     
-    // Primary: access_token (used by authManager)
-    // Fallback: token (legacy)
-    return localStorage.getItem('access_token') || localStorage.getItem('token');
+    // Try to get token from authManager first (if available)
+    try {
+      // Import authManager dynamically to avoid circular imports
+      const { authManager } = require('./auth');
+      const authState = authManager.getAuthState();
+      if (authState.token) {
+        return authState.token;
+      }
+    } catch (error) {
+      // AuthManager not available, continue with fallback
+    }
+    
+    // Fallback to localStorage with multiple possible keys
+    return localStorage.getItem('access_token') || 
+           localStorage.getItem('token') ||
+           localStorage.getItem('authToken') ||
+           null;
   }
 
   /**
@@ -250,6 +264,24 @@ class ApiClient {
     return this.request(`/courses/${code}`);
   }
 
+  async createCourse(data: any): Promise<any> {
+    return this.request('/courses', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateCourse(code: string, data: any): Promise<any> {
+    return this.request(`/courses/${code}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCourse(code: string): Promise<any> {
+    return this.request(`/courses/${code}`, { method: 'DELETE' });
+  }
+
   // ====== UNITS ======
   
   async getUnits(params?: {
@@ -432,4 +464,3 @@ export { ApiClient };
 
 // Export types
 export type { ApiResponse, LoginResponse, LoginCredentials };
-
