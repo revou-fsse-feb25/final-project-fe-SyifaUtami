@@ -20,10 +20,19 @@ A modern Learning Management System frontend built with Next.js 14, TypeScript, 
 
 ## install
 
+- use railway immediately or for local:
+  
 - Clone the repository
 - Install dependencies (npm install)
-- create .env file
-- Environment setup -> env local to https://imajine-uni-api-production.up.railway.app
+- create .env file - connect with backend
+- Run Frontend Locally
+  ```
+  npm run dev
+  ```
+  (app will open at http://localhost:3000)
+  
+
+## Page features
   
 ### *Login*
 
