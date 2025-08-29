@@ -1,123 +1,127 @@
-Data mockup list:
+# Imajine University LMS - Frontend
 
-Login students 
-- name: Tom Holland
-- email: TomHolland@imajine.ac.id
-- password: student123
-- course: Business Management
+- **Live URL**: [https://imajine-uni-frontend.vercel.app](https://imajine-uni-frontend.vercel.app)
+- **Backend API**: [https://imajine-uni-api-production.up.railway.app](https://imajine-uni-api-production.up.railway.app)
 
-Login students
-- name: Florence Pugh
-- email: FlorencePugh@imajine.ac.id
-- password: student 123
-- course: Business Analytics
+## info
 
-Login faculty coordinator (full access):
-- title: Coordinator
-- email: coordinator@imajine.ac.id
-- password: coordinator123
-
-Students data (general)
-- first name
-- last name (if existed)
-- student ID
-- course enrolled
-- year (Always year 1)
-
-Course data: 
-1. Business Analytics
-Course code: BA
-
-Description: "Launch a career in the booming world of business insights with Imajine University's Bachelor of Business Analytics. With hands-on experience in real-world projects, you will become a confident business analytics translator capable of unlocking innovative solutions for businesses using data insights.
-
-In Victoria's longest running specialised business analytics course, you will learn practical commercial skills to interpret data and information, so you can solve complex organisational problems and create opportunities for businesses. Work on real-world projects, practise with the analysis tools used by professionals and get industry experience translating insights into impact. Better still, the strategic input of our industry partners, including IBM, Deloitte and PwC, feeds into course content. This ensures you graduate with a degree that is built for the needs of business, today and into the future."
-
-Units:
-- BA001: Academic Integrity and Respect
-- BA002: Introduction to Operations Management
-- BA003: Tools and Techniques for Business Analytics
-- BA004: Business Analytics Fundamentals
-
-Teachers: 
-- Thomas Raggi; teaches BA001 and BA002
-- Ethan Torchio; teaches BA003 and BA004
-
-2. Business Management
-Course code: BM
-Description: "Imajine University's Bachelor of Business gives you the skills and experience needed to succeed in the business world. You will solve practical business challenges, explore innovative and emerging business trends, and prepare for the nuances of international business relationships. There are opportunities to secure a sought-after work placement with our industry partners, and to gain a global perspective of business on an international study tour.
-
-You will adopt the entrepreneurial tools required to get your own business up and running, and get the skills to work in a variety of roles, from sustainability and events management to digital communication and organisational psychology."
-
-Units:
-
-- BM001: Employability and Careers
-- BM002: Principles of Marketing
-- BM003: Intro to Economics for Managers
-- BM004: Intro to Entrepreneurship
-
-Teachers:
-- Damiano David; teaches BM001 and BM002
-- Victoria De Angelis; teaches BM003 and BM004
-
-Student course progress data (for every units in each students)
-- week 1 material (done/not done)
-- week 2 material (done/not done)
-- week 3 material (not done)
-- week 4 material (not done)
-- assignment 1 (Always status: closed)
-- assignment 2 (always status: closed)
-- assignment 3 (always status: open)
-
-Assignments (there are 3 in each units, 2 closed and 1 submitted):
-- assignment name
-- assignment unit
-- assignment ID
-- deadline
-- published at
-- assignment status (Closed/open)
-
-Assignments x students data: 
-for closed assignments in each students and units: 
-- submission name
-- submitted at (small possibility not submitted at all)
-- grade (unsubmitted assignment is 0)
-- comment
-- graded by
-
-for open submission
-- submission name
-- submission status (draft/empty)
-
-File structure: 
-Components needed:
-General:
-- navigation bar (role-aware, coordinator vs students)
-- buttons
-- search bar (Coordinator: search students, units, assignments; students: search assignments)
-- unit tiles
-- profile
-- 
-Students: 
-1. Dashboard: 
-- upcoming assignments
-2. Unit details 
-- 
+- **Framework**: Next.js 14 with App Router
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS + Custom CSS Variables
+- **Icons**: FontAwesome
+- **Authentication**: JWT with refresh tokens
+- **State Management**: React hooks + Context API
+- **HTTP Client**: Fetch API with custom wrapper
+- **Deployment**: Vercel (Automatic deployments)
 
 
-.login directs to dashboard, should be on course
+### Student P
+
+#### **Dashboard & Profile**
+- Profile info
+- enrollment data
+
+#### **Course & Unit Management**
+- View enrolled courses (Business Management, Business Analytics)
+- progress track
+- Unit information
+
+#### **Assignment System**
+- View all assignments with status (OPEN/CLOSED)
+- Filter assignments by unit, status, and submission state
+- Assignment submission page
+- Grade viewing and feedback system
+
+#### **Progress Analytics**
+- Individual unit progress bar
+- Weekly material completion check
+- Assignment completion tracking
+
+### 👨‍💼 Coordinator Portal
+
+#### **Dashboard & Analytics**
+- System overview with key metrics
+- Student behaviour statistics
+- Teacher and course counts
+- Performance analytics
+
+#### **Student Management**
+- Complete student data with search and filters
+- Individual student profiles with detailed analytics
+- Academic performance tracking
+- Progress monitoring across all units
+- Change grades and week performance
+
+#### **Course & Unit Administration**
+- Course overview and management
+- Unit creation, editing, and deletion
+- Assignment management
+- Progress tracking for all students
+
+#### **Teacher Management**
+- Faculty data and contact information
+- Teacher statistics and performance metrics
+- Course assignment tracking
+- add / delete teacher
+
+### **Design System**
+- Integrated css with global.css to ensure designs are consistent
+- Responsive design with mobile-first approach
+- Consistent card-based layout system
+
+### **other**
+- **Navigation**: Collapsible sidebar with role-based menu items
+- **Modal System**: Course and unit management modals
+- **Error Handling**: User-friendly error messages
 
 
-NEST FOR MILESTONE
+### **Authentication System**
+- JWT token authentication
+- Automatic token refresh
+- Role-based access control (Student/Coordinator)
+- Cross-tab login/logout synchronization
+- Secure local storage management
 
-User transaction account
-1. Nest js install dulu
-2. prisma ORM relationship for entity account
-3. Bikin koneksi ke database pgadmin, dbeaver
-4. seeding data
-5. User service + auth layers (generate jwt)
-6. Guard - generate token
+### **Route Protection**
 
-imajine-uni-frontend-8t8igi1j1-tamtahos-projects.vercel.app
-NOTE: 
-Delete teacher not working
-di units overview, assignment list malah ke submission page yg udah closed
+- Private routes with authentication middleware
+- Role-based route protection
+- Automatic redirects based on user role
+
+### **Test Credentials**
+```
+Coordinator:
+Email: coordinator@imajine.ac.id
+Password: coordinator123
+
+Student:
+Email: TomHolland@imajine.ac.id
+Password: student123
+```
+
+### **Key API Endpoints**
+```
+Authentication:
+- POST /auth/login
+- POST /auth/refresh
+- POST /auth/logout
+
+Students:
+- GET /students (coordinator-side information)
+- GET /students/:id/units
+- GET /students/stats
+
+Assignments:
+- GET /assignments
+- GET /assignments/:id
+- PUT /assignments/:id
+
+Analytics:
+- GET /analytics/overview
+- GET /analytics/student/:id
+- GET /analytics/trends
+
+Progress:
+- GET /student-progress/student/:id
+- PUT /student-progress/student/:id/unit/:code
+```
