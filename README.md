@@ -21,16 +21,10 @@ A modern Learning Management System frontend built with Next.js 14, TypeScript, 
 ## install
 
 - Clone the repository
-- Install dependencies
-- Environment setup
-- bash# Create environment file
-
-# Edit .env.local
-NEXT_PUBLIC_API_BASE_URL=https://imajine-uni-api-production.up.railway.app
-
-Run development server
-
-bashnpm run dev
+- Install dependencies (npm install)
+- create .env file
+- Environment setup -> env local to https://imajine-uni-api-production.up.railway.app
+  
 ### *Login*
 
 <img width="700" height="auto" alt="image" src="https://github.com/user-attachments/assets/f2dcc652-e74a-4563-b672-8003cdf29c7d" />
