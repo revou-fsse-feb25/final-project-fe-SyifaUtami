@@ -28,8 +28,9 @@ export const calculateProgress = (
     assignment.unitCode === progressData.unitCode
   );
   
+  // Fix: Use 'CLOSED' instead of 'closed' to match the type definition
   const completedAssignments = unitAssignments.filter(assignment => 
-    assignment.status === 'closed'
+    assignment.status === 'CLOSED'
   ).length;
   
   const totalMaterials = materialFields.length;
@@ -46,58 +47,90 @@ export const calculateProgress = (
   };
 };
 
+// Component for displaying individual progress
+const IndividualProgress: FC<{ progressData: StudentProgress; assignments: Assignment[] }> = ({ 
+  progressData, 
+  assignments 
+}) => {
+  const progress = calculateProgress(progressData, assignments);
+  
+  return (
+    <div className="bg-white p-4 rounded-lg shadow-sm border">
+      <h3 className="font-semibold text-lg mb-2">{progressData.unitCode}</h3>
+      <div className="flex items-center gap-4">
+        <div className="flex-1 bg-gray-200 rounded-full h-2">
+          <div 
+            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+            style={{ width: `${progress.percentage}%` }}
+          />
+        </div>
+        <span className="text-sm font-medium text-gray-700">
+          {progress.percentage}%
+        </span>
+      </div>
+      <p className="text-sm text-gray-600 mt-2">
+        {progress.completed} of {progress.total} items completed
+      </p>
+    </div>
+  );
+};
+
+// Component for displaying average progress
+const AverageProgress: FC<{ allProgressData: StudentProgress[]; assignments: Assignment[] }> = ({ 
+  allProgressData, 
+  assignments 
+}) => {
+  // Calculate average progress across all students
+  const averagePercentage = allProgressData.length > 0 
+    ? Math.round(
+        allProgressData.reduce((sum, progressData) => {
+          const { percentage } = calculateProgress(progressData, assignments);
+          return sum + percentage;
+        }, 0) / allProgressData.length
+      )
+    : 0;
+
+  return (
+    <div className="bg-white p-4 rounded-lg shadow-sm border">
+      <h3 className="font-semibold text-lg mb-2">Average Class Progress</h3>
+      <div className="flex items-center gap-4">
+        <div className="flex-1 bg-gray-200 rounded-full h-2">
+          <div 
+            className="bg-green-500 h-2 rounded-full transition-all duration-300"
+            style={{ width: `${averagePercentage}%` }}
+          />
+        </div>
+        <span className="text-sm font-medium text-gray-700">
+          {averagePercentage}%
+        </span>
+      </div>
+      <p className="text-sm text-gray-600 mt-2">
+        Based on {allProgressData.length} students
+      </p>
+    </div>
+  );
+};
+
+// Main component
 const StudentProgressComponent: FC<StudentProgressProps> = ({ 
   progressData, 
   allProgressData, 
   assignments, 
   mode = 'individual' 
 }) => {
-  
-  if (mode === 'individual') {
-    // Handle missing progress data - create default with proper typing
-    const safeProgressData: StudentProgress = progressData || {
-      studentId: '',
-      unitCode: assignments[0]?.unitCode || '',
-      week1Material: "not done" as const,
-      week2Material: "not done" as const,
-      week3Material: "not done" as const,
-      week4Material: "not done" as const
-    };
-    
-    const progress = calculateProgress(safeProgressData, assignments);
-    return (
-      <div>
-        <span>{progress.percentage}%</span>
-        <span> ({progress.completed}/{progress.total})</span>
-      </div>
-    );
-  }
-  
   if (mode === 'average' && allProgressData) {
-    // Coordinator average progress
-    if (allProgressData.length === 0) {
-      return <div>0% (0/0)</div>;
-    }
-    
-    const progressResults = allProgressData.map(studentProgress => 
-      calculateProgress(studentProgress, assignments).percentage
-    );
-    
-    const averagePercentage = Math.round(
-      progressResults.reduce((sum, percentage) => sum + percentage, 0) / progressResults.length
-    );
-    
-    const studentsCompleted = progressResults.filter(p => p === 100).length;
-    
-    return (
-      <div>
-        <span>{averagePercentage}%</span>
-        <span> ({studentsCompleted}/{allProgressData.length})</span>
-      </div>
-    );
+    return <AverageProgress allProgressData={allProgressData} assignments={assignments} />;
   }
   
-  return <div>0% (0/0)</div>;
+  if (mode === 'individual' && progressData) {
+    return <IndividualProgress progressData={progressData} assignments={assignments} />;
+  }
+  
+  return (
+    <div className="bg-gray-100 p-4 rounded-lg">
+      <p className="text-gray-500">No progress data available</p>
+    </div>
+  );
 };
 
 export default StudentProgressComponent;
