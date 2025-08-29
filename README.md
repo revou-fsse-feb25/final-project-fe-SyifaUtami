@@ -1,4 +1,8 @@
 # Imagine Unviersity LMS Frontend
+
+A modern Learning Management System frontend built with Next.js 14, TypeScript, and Tailwind CSS. This application provides comprehensive tools for students and coordinators to manage academic activities, track progress, and analyze performance.
+
+**deployments*
 - **Live URL**: https://imajine-uni-frontend.vercel.app](https://imajine-uni-frontend.vercel.app
 - **Backend API**: https://imajine-uni-api-production.up.railway.app](https://imajine-uni-api-production.up.railway.app
 
